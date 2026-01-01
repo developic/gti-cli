@@ -15,7 +15,7 @@
   </a>
 </p>
 
-GTI (Graphical Typing Tool) is a fast, lightweight, and terminal-based typing speed and practice application.
+GTI (Graphical Typing Tool) is a fast, lightweight and terminal-based typing speed and practice application.
 
 # Installation
 
@@ -28,14 +28,14 @@ go build -o gti main.go
 
 ## Linux
 ```bash
-sudo curl -L https://github.com/developic/gti/releases/download/v0.1.0/gti-linux -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
+sudo curl -L https://github.com/developic/gti/releases/download/v1.0.0/gti-linux -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
 sudo curl -o /usr/share/man/man1/gti.1.gz -L https://github.com/developic/gti/releases/download/v0.1.0/gti.1.gz
 ```
 
 ### macOS
 ```bash
 mkdir -p /usr/local/bin /usr/local/share/man/man1 # Usually created by brew
-sudo curl -L https://github.com/developic/gti/releases/download/v0.1.0/gti-mac -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
+sudo curl -L https://github.com/developic/gti/releases/download/v1.0.0/gti-mac -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
 sudo curl -o /usr/local/share/man/man1/gti.1.gz -L https://github.com/developic/gti/releases/download/v0.1.0/gti.1.gz
 ```
 
