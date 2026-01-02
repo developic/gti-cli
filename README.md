@@ -129,8 +129,8 @@ gti -s
 GTI stores configuration in your system's config directory. Use the `config` command to view and manage settings:
 
 ```bash
-gti config view     # View current configuration
-gti config reset    # Reset to defaults
+gti config --view     # View current configuration
+gti config --reset    # Reset to defaults
 ```
 
 ## Keyboard Shortcuts
