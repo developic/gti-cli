@@ -1,0 +1,47 @@
+name: Build and Release 
+
+on:
+  push:
+    tags:
+      - "v*"  
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      # Prepare man page
+      - name: Prepare man page
+        run: gzip -c gti.1 > gti.1.gz
+
+      # Build binaries
+      - name: Build Linux amd64
+        run: GOOS=linux GOARCH=amd64 go build -ldflags "-X gti/src/cmd.Version=${GITHUB_REF#refs/tags/}" -o gti-linux main.go
+
+      - name: Build Linux arm64
+        run: GOOS=linux GOARCH=arm64 go build -ldflags "-X gti/src/cmd.Version=${GITHUB_REF#refs/tags/}" -o gti-linux_arm64 main.go
+
+      - name: Build macOS arm64
+        run: GOOS=darwin GOARCH=arm64 go build -ldflags "-X gti/src/cmd.Version=${GITHUB_REF#refs/tags/}" -o gti-mac main.go
+
+      - name: Build Windows amd64
+        run: GOOS=windows GOARCH=amd64 go build -ldflags "-X gti/src/cmd.Version=${GITHUB_REF#refs/tags/}" -o gti.exe main.go
+
+      # create release and upload binaries
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: false
+          title: "${GITHUB_REF#refs/tags/} Release"
+          files: |
+            gti-linux
+            gti-linux_arm64
+            gti-mac
+            gti.exe
+            gti.1.gz
