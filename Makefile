@@ -1,5 +1,5 @@
 PREFIX := /usr/local/bin
-VERSION := 1.0  # version for builds
+VERSION := 1.0.0  # version for builds
 
 .PHONY: all
 all:
