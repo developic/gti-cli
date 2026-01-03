@@ -1,11 +1,11 @@
 # GTI
 
 <p align="center">
-  <a href="https://github.com/developic/gti/stargazers">
-    <img src="https://img.shields.io/github/stars/developic/gti?style=flat&cacheSeconds=60" alt="GitHub stars">
+  <a href="https://github.com/developic/gti-cli/stargazers">
+    <img src="https://img.shields.io/github/stars/developic/gti-cli?style=flat&cacheSeconds=60" alt="GitHub stars">
   </a>
-  <a href="https://github.com/developic/gti/issues">
-    <img src="https://img.shields.io/github/issues/developic/gti.svg?color=orange" alt="GitHub issues">
+  <a href="https://github.com/developic/gti-cli/issues">
+    <img src="https://img.shields.io/github/issues/developic/gti-cli.svg?color=orange" alt="GitHub issues">
   </a>
   <a href="https://opensource.org/licenses/MIT">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
@@ -21,26 +21,26 @@ GTI (Graphical Typing Tool) is a fast, lightweight and terminal based typing spe
 
 ## Build from Source
 ```bash
-git clone https://github.com/developic/gti
-cd gti
+git clone https://github.com/developic/gti-cli
+cd gti-cli
 go build -o gti main.go
 ```
 
 ## Linux
 ```bash
-sudo curl -L https://github.com/developic/gti/releases/download/v1.0.0/gti-linux -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
-sudo curl -o /usr/share/man/man1/gti.1.gz -L https://github.com/developic/gti/releases/download/v1.0.0/gti.1.gz
+sudo curl -L https://github.com/developic/gti-cli/releases/download/v1.0.0/gti-linux -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
+sudo curl -o /usr/share/man/man1/gti.1.gz -L https://github.com/developic/gti-cli/releases/download/v1.0.0/gti.1.gz
 ```
 
 ### macOS
 ```bash
 mkdir -p /usr/local/bin /usr/local/share/man/man1 # Usually created by brew
-sudo curl -L https://github.com/developic/gti/releases/download/v1.0.0/gti-mac -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
-sudo curl -o /usr/local/share/man/man1/gti.1.gz -L https://github.com/developic/gti/releases/download/v1.0.0/gti.1.gz
+sudo curl -L https://github.com/developic/gti-cli/releases/download/v1.0.0/gti-mac -o /usr/local/bin/gti && sudo chmod +x /usr/local/bin/gti
+sudo curl -o /usr/local/share/man/man1/gti.1.gz -L https://github.com/developic/gti-cli/releases/download/v1.0.0/gti.1.gz
 ```
 ### Windows
 ```bash
-if (-Not (Test-Path "C:\Tools")) { New-Item -ItemType Directory -Path "C:\Tools" }; curl -L -o "$env:USERPROFILE\gti.exe" https://github.com/developic/gti/releases/download/v1.0.0/gti.exe; Move-Item -Force "$env:USERPROFILE\gti.exe" "C:\Tools\gti.exe"; if ($env:Path -notlike "*C:\Tools*") { [Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Tools", [EnvironmentVariableTarget]::User) }
+if (-Not (Test-Path "C:\Tools")) { New-Item -ItemType Directory -Path "C:\Tools" }; curl -L -o "$env:USERPROFILE\gti.exe" https://github.com/developic/gti-cli/releases/download/v1.0.0/gti.exe; Move-Item -Force "$env:USERPROFILE\gti.exe" "C:\Tools\gti.exe"; if ($env:Path -notlike "*C:\Tools*") { [Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Tools", [EnvironmentVariableTarget]::User) }
 ```
 
 ## Uninstall
