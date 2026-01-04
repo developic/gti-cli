@@ -1,0 +1,208 @@
+# Python Language Code Snippets
+
+# Basic function
+def add(a, b):
+    return a + b
+
+# Class definition
+class Calculator:
+    def __init__(self):
+        self.value = 0
+
+    def add(self, x):
+        self.value += x
+
+    def get_value(self):
+        return self.value
+
+# List comprehensions
+def main():
+    # Create a list of squares
+    squares = [x**2 for x in range(10)]
+    print("Squares:", squares)
+
+    # Filter even numbers
+    evens = [x for x in range(20) if x % 2 == 0]
+    print("Evens:", evens)
+
+    # Dictionary comprehension
+    square_dict = {x: x**2 for x in range(5)}
+    print("Square dict:", square_dict)
+
+# Exception handling
+def divide(a, b):
+    try:
+        result = a / b
+        return result
+    except ZeroDivisionError:
+        print("Error: Division by zero!")
+        return None
+    except TypeError:
+        print("Error: Invalid types!")
+        return None
+    finally:
+        print("Division operation completed")
+
+# File operations
+def main():
+    # Write to file
+    with open("example.txt", "w") as f:
+        f.write("Hello, World!\n")
+        f.write("This is a test file.\n")
+
+    # Read from file
+    try:
+        with open("example.txt", "r") as f:
+            content = f.read()
+            print("File content:")
+            print(content)
+    except FileNotFoundError:
+        print("File not found!")
+
+# Dictionary operations
+def main():
+    # Create dictionary
+    person = {
+        "name": "Alice",
+        "age": 25,
+        "city": "New York"
+    }
+
+    # Access values
+    print(f"Name: {person['name']}")
+    print(f"Age: {person.get('age')}")
+
+    # Add/update values
+    person["email"] = "alice@example.com"
+    person["age"] = 26
+
+    # Iterate over dictionary
+    for key, value in person.items():
+        print(f"{key}: {value}")
+
+# JSON handling
+import json
+
+def main():
+    # Create data
+    data = {
+        "name": "Bob",
+        "age": 30,
+        "hobbies": ["reading", "coding", "gaming"]
+    }
+
+    # Write JSON to file
+    with open("data.json", "w") as f:
+        json.dump(data, f, indent=4)
+
+    # Read JSON from file
+    with open("data.json", "r") as f:
+        loaded_data = json.load(f)
+        print("Loaded data:", loaded_data)
+
+# Lambda functions
+def main():
+    # Simple lambda
+    square = lambda x: x**2
+    print("Square of 5:", square(5))
+
+    # Lambda with multiple arguments
+    add = lambda x, y: x + y
+    print("5 + 3 =", add(5, 3))
+
+    # Lambda in sorting
+    points = [(1, 2), (3, 1), (5, 0), (0, 4)]
+    points.sort(key=lambda p: p[1])  # Sort by y-coordinate
+    print("Sorted by y:", points)
+
+# Decorators
+def timer_decorator(func):
+    def wrapper(*args, **kwargs):
+        import time
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"{func.__name__} took {end_time - start_time:.2f} seconds")
+        return result
+    return wrapper
+
+@timer_decorator
+def slow_function():
+    import time
+    time.sleep(1)
+    return "Done!"
+
+# Context managers
+class FileManager:
+    def __init__(self, filename, mode):
+        self.filename = filename
+        self.mode = mode
+        self.file = None
+
+    def __enter__(self):
+        self.file = open(self.filename, self.mode)
+        return self.file
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.file:
+            self.file.close()
+
+def main():
+    with FileManager("test.txt", "w") as f:
+        f.write("Hello from context manager!")
+
+# Regular expressions
+import re
+
+def main():
+    text = "The email addresses are john@example.com and jane@test.org"
+
+    # Find all email addresses
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    emails = re.findall(email_pattern, text)
+    print("Found emails:", emails)
+
+    # Replace patterns
+    result = re.sub(r'\b\d{3}-\d{3}-\d{4}\b', 'XXX-XXX-XXXX', "Call 123-456-7890")
+    print("Masked phone:", result)
+
+# Multithreading
+import threading
+import time
+
+def worker(thread_id, results):
+    print(f"Thread {thread_id} starting")
+    time.sleep(2)
+    results[thread_id] = f"Result from thread {thread_id}"
+
+def main():
+    results = {}
+    threads = []
+
+    # Create threads
+    for i in range(3):
+        t = threading.Thread(target=worker, args=(i, results))
+        threads.append(t)
+        t.start()
+
+    # Wait for all threads
+    for t in threads:
+        t.join()
+
+    print("All threads completed")
+    for key, value in results.items():
+        print(f"{key}: {value}")
+
+# Command line arguments
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('integers', metavar='N', type=int, nargs='+',
+                       help='an integer for the accumulator')
+    parser.add_argument('--sum', dest='accumulate', action='store_const',
+                       const=sum, default=max,
+                       help='sum the integers (default: find the max)')
+
+    args = parser.parse_args()
+    print(args.accumulate(args.integers))

@@ -1,0 +1,148 @@
+# TypeScript Language Code Snippets
+
+# Basic function with types
+function add(a: number, b: number): number {
+    return a + b;
+}
+
+# Interface
+interface Person {
+    name: string;
+    age: number;
+    email?: string;
+}
+
+# Class with TypeScript features
+class Calculator {
+    private value: number = 0;
+
+    constructor(initialValue: number = 0) {
+        this.value = initialValue;
+    }
+
+    public add(x: number): this {
+        this.value += x;
+        return this;
+    }
+
+    public getValue(): number {
+        return this.value;
+    }
+}
+
+# Generics
+class Box<T> {
+    private value: T;
+
+    constructor(value: T) {
+        this.value = value;
+    }
+
+    getValue(): T {
+        return this.value;
+    }
+}
+
+# Union types and type guards
+type StringOrNumber = string | number;
+
+function processValue(value: StringOrNumber): void {
+    if (typeof value === "string") {
+        console.log("String:", value.toUpperCase());
+    } else {
+        console.log("Number:", value * 2);
+    }
+}
+
+# Enums
+enum Direction {
+    North = "NORTH",
+    South = "SOUTH",
+    East = "EAST",
+    West = "WEST"
+}
+
+# Arrays and array methods
+function arrayExample(): void {
+    const numbers: number[] = [1, 2, 3, 4, 5];
+    const doubled = numbers.map(n => n * 2);
+    const evens = numbers.filter(n => n % 2 === 0);
+    const sum = numbers.reduce((a, b) => a + b, 0);
+}
+
+# Async/await with proper typing
+interface User {
+    id: number;
+    name: string;
+    email: string;
+}
+
+async function fetchUser(userId: number): Promise<User> {
+    const response = await fetch(`https://api.example.com/users/${userId}`);
+    return await response.json();
+}
+
+# Utility types
+interface Todo {
+    id: number;
+    title: string;
+    completed: boolean;
+}
+
+type TodoPreview = Pick<Todo, "id" | "title">;
+type TodoWithoutId = Omit<Todo, "id">;
+
+# Decorators
+function log(target: any, propertyName: string, descriptor: PropertyDescriptor) {
+    const method = descriptor.value;
+    descriptor.value = function(...args: any[]) {
+        console.log(`Calling ${propertyName}`);
+        return method.apply(this, args);
+    };
+}
+
+# Error handling with custom error types
+class ValidationError extends Error {
+    constructor(message: string, public field: string) {
+        super(message);
+        this.name = "ValidationError";
+    }
+}
+
+# Map and Set with types
+function collectionsExample(): void {
+    const userMap = new Map<string, User>();
+    userMap.set("alice", { id: 1, name: "Alice", email: "alice@example.com" });
+    console.log("Alice:", userMap.get("alice"));
+}
+
+# Promises with proper typing
+function promiseExample(): Promise<string> {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            Math.random() > 0.5 ? resolve("Success!") : reject(new Error("Failed!"));
+        }, 1000);
+    });
+}
+
+# Function overloads
+function createElement(tag: "div"): HTMLDivElement;
+function createElement(tag: "span"): HTMLSpanElement;
+function createElement(tag: string): HTMLElement {
+    return document.createElement(tag);
+}
+
+# Modules
+export interface Config {
+    apiUrl: string;
+    timeout: number;
+}
+
+export class ApiClient {
+    constructor(private config: Config) {}
+
+    async get(endpoint: string): Promise<any> {
+        const response = await fetch(`${this.config.apiUrl}${endpoint}`);
+        return response.json();
+    }
+}

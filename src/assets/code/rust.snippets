@@ -1,0 +1,272 @@
+# Rust Language Code Snippets
+
+// Basic function
+fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+// Struct and implementation
+struct Calculator {
+    value: i32,
+}
+
+impl Calculator {
+    fn new() -> Calculator {
+        Calculator { value: 0 }
+    }
+    
+    fn add(&mut self, x: i32) {
+        self.value += x;
+    }
+    
+    fn subtract(&mut self, x: i32) {
+        self.value -= x;
+    }
+    
+    fn get_value(&self) -> i32 {
+        self.value
+    }
+}
+
+fn main() {
+    println!("Hello, World!");
+    
+    let mut calc = Calculator::new();
+    calc.add(5);
+    calc.add(10);
+    println!("Result: {}", calc.get_value());
+}
+
+// Ownership and borrowing
+fn main() {
+    let s1 = String::from("hello");
+    let s2 = s1; // s1 is moved, no longer valid
+    
+    println!("s2: {}", s2);
+    // println!("s1: {}", s1); // This would cause a compile error
+    
+    let s3 = String::from("world");
+    let s4 = &s3; // Borrowing
+    println!("s3: {}, s4: {}", s3, s4);
+}
+
+// Vectors
+fn vector_example() {
+    let mut numbers: Vec<i32> = vec![1, 2, 3, 4, 5];
+    
+    // Add elements
+    numbers.push(6);
+    numbers.push(7);
+    
+    // Access elements
+    println!("First element: {}", numbers[0]);
+    println!("Length: {}", numbers.len());
+    
+    // Iterate
+    for num in &numbers {
+        print!("{} ", num);
+    }
+    println!();
+    
+    // Iterate with index
+    for (i, num) in numbers.iter().enumerate() {
+        println!("Index {}: {}", i, num);
+    }
+}
+
+// HashMap
+use std::collections::HashMap;
+
+fn hashmap_example() {
+    let mut ages = HashMap::new();
+    
+    // Insert elements
+    ages.insert("Alice", 25);
+    ages.insert("Bob", 30);
+    ages.insert("Charlie", 35);
+    
+    // Access elements
+    match ages.get("Alice") {
+        Some(age) => println!("Alice's age: {}", age),
+        None => println!("Alice not found"),
+    }
+    
+    // Iterate
+    for (name, age) in &ages {
+        println!("{} is {} years old", name, age);
+    }
+}
+
+// Error handling with Result
+fn divide(a: f64, b: f64) -> Result<f64, String> {
+    if b == 0.0 {
+        return Err("Division by zero!".to_string());
+    }
+    Ok(a / b)
+}
+
+fn error_handling_example() {
+    match divide(10.0, 2.0) {
+        Ok(result) => println!("Result: {}", result),
+        Err(error) => println!("Error: {}", error),
+    }
+    
+    match divide(10.0, 0.0) {
+        Ok(result) => println!("Result: {}", result),
+        Err(error) => println!("Error: {}", error),
+    }
+}
+
+// Generics
+struct Point<T> {
+    x: T,
+    y: T,
+}
+
+impl<T> Point<T> {
+    fn new(x: T, y: T) -> Point<T> {
+        Point { x, y }
+    }
+    
+    fn get_x(&self) -> &T {
+        &self.x
+    }
+    
+    fn get_y(&self) -> &T {
+        &self.y
+    }
+}
+
+fn generics_example() {
+    let int_point = Point::new(5, 10);
+    let float_point = Point::new(1.5, 2.5);
+    
+    println!("Int point: ({}, {})", int_point.get_x(), int_point.get_y());
+    println!("Float point: ({}, {})", float_point.get_x(), float_point.get_y());
+}
+
+// Traits
+trait Shape {
+    fn area(&self) -> f64;
+    fn perimeter(&self) -> f64;
+}
+
+struct Rectangle {
+    width: f64,
+    height: f64,
+}
+
+impl Shape for Rectangle {
+    fn area(&self) -> f64 {
+        self.width * self.height
+    }
+    
+    fn perimeter(&self) -> f64 {
+        2.0 * (self.width + self.height)
+    }
+}
+
+fn traits_example() {
+    let rect = Rectangle { width: 5.0, height: 3.0 };
+    println!("Area: {}", rect.area());
+    println!("Perimeter: {}", rect.perimeter());
+}
+
+// Pattern matching
+enum Direction {
+    North,
+    South,
+    East,
+    West,
+}
+
+fn pattern_matching_example() {
+    let direction = Direction::North;
+    
+    match direction {
+        Direction::North => println!("Going north"),
+        Direction::South => println!("Going south"),
+        Direction::East => println!("Going east"),
+        Direction::West => println!("Going west"),
+    }
+    
+    let number = 5;
+    match number {
+        1 => println!("One"),
+        2 | 3 => println!("Two or three"),
+        4..=10 => println!("Between four and ten"),
+        _ => println!("Something else"),
+    }
+}
+
+// File I/O
+use std::fs;
+use std::io::{self, Write};
+
+fn file_io_example() -> io::Result<()> {
+    // Write to file
+    let mut file = fs::File::create("example.txt")?;
+    file.write_all(b"Hello, World!\n")?;
+    file.write_all(b"This is a test file.\n")?;
+    
+    // Read from file
+    let contents = fs::read_to_string("example.txt")?;
+    println!("File contents:\n{}", contents);
+    
+    Ok(())
+}
+
+// Async programming
+use tokio;
+
+async fn async_example() {
+    println!("Starting async operation");
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    println!("Async operation completed");
+}
+
+#[tokio::main]
+async fn main() {
+    async_example().await;
+}
+
+// Iterator methods
+fn iterator_example() {
+    let numbers = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    
+    // Filter
+    let even_numbers: Vec<i32> = numbers.iter()
+        .filter(|&&x| x % 2 == 0)
+        .cloned()
+        .collect();
+    
+    println!("Even numbers: {:?}", even_numbers);
+    
+    // Map
+    let squares: Vec<i32> = numbers.iter()
+        .map(|&x| x * x)
+        .collect();
+    
+    println!("Squares: {:?}", squares);
+    
+    // Sum
+    let sum: i32 = numbers.iter().sum();
+    println!("Sum: {}", sum);
+}
+
+// Lifetimes
+fn longest<'a>(s1: &'a str, s2: &'a str) -> &'a str {
+    if s1.len() > s2.len() {
+        s1
+    } else {
+        s2
+    }
+}
+
+fn lifetimes_example() {
+    let string1 = String::from("short");
+    let string2 = String::from("longer");
+    
+    let result = longest(&string1, &string2);
+    println!("The longest string is: {}", result);
+}

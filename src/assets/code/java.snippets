@@ -1,0 +1,155 @@
+# Java Language Code Snippets
+
+# Basic class
+public class Calculator {
+    private int value;
+
+    public Calculator() {
+        this.value = 0;
+    }
+
+    public void add(int x) {
+        this.value += x;
+    }
+
+    public int getValue() {
+        return this.value;
+    }
+}
+
+# Main method
+public class Main {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+        Calculator calc = new Calculator();
+        calc.add(5);
+        System.out.println("Result: " + calc.getValue());
+    }
+}
+
+# Exception handling
+public class Divider {
+    public static double divide(double a, double b) throws ArithmeticException {
+        if (b == 0) {
+            throw new ArithmeticException("Division by zero!");
+        }
+        return a / b;
+    }
+}
+
+# Collections - ArrayList
+import java.util.ArrayList;
+import java.util.List;
+
+public class ListExample {
+    public static void main(String[] args) {
+        List<String> names = new ArrayList<>();
+        names.add("Alice");
+        names.add("Bob");
+        System.out.println("First: " + names.get(0));
+        System.out.println("Size: " + names.size());
+    }
+}
+
+# Collections - HashMap
+import java.util.HashMap;
+import java.util.Map;
+
+public class MapExample {
+    public static void main(String[] args) {
+        Map<String, Integer> ages = new HashMap<>();
+        ages.put("Alice", 25);
+        ages.put("Bob", 30);
+        System.out.println("Alice: " + ages.get("Alice"));
+    }
+}
+
+# File I/O
+import java.io.*;
+import java.nio.file.*;
+
+public class FileExample {
+    public static void main(String[] args) {
+        try {
+            Path filePath = Paths.get("example.txt");
+            String content = "Hello, World!";
+            Files.write(filePath, content.getBytes());
+            String readContent = Files.readString(filePath);
+            System.out.println(readContent);
+        } catch (IOException e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+    }
+}
+
+# Streams API
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class StreamExample {
+    public static void main(String[] args) {
+        List<Integer> numbers = Arrays.asList(1, 2, 3, 4, 5);
+        List<Integer> evens = numbers.stream()
+                .filter(n -> n % 2 == 0)
+                .collect(Collectors.toList());
+        System.out.println("Evens: " + evens);
+    }
+}
+
+# Generics
+public class Box<T> {
+    private T value;
+
+    public Box(T value) {
+        this.value = value;
+    }
+
+    public T getValue() {
+        return value;
+    }
+}
+
+# Interface
+interface Shape {
+    double area();
+    double perimeter();
+}
+
+class Rectangle implements Shape {
+    private double width, height;
+
+    public Rectangle(double width, double height) {
+        this.width = width;
+        this.height = height;
+    }
+
+    @Override
+    public double area() {
+        return width * height;
+    }
+
+    @Override
+    public double perimeter() {
+        return 2 * (width + height);
+    }
+}
+
+# Threading
+class Worker implements Runnable {
+    private String name;
+
+    public Worker(String name) {
+        this.name = name;
+    }
+
+    @Override
+    public void run() {
+        System.out.println(name + " working");
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            System.out.println(name + " interrupted");
+        }
+    }
+}
