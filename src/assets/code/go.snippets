@@ -1,0 +1,209 @@
+# Go Language Code Snippets
+
+# Basic function
+func add(a, b int) int {
+    return a + b
+}
+
+# Struct and method
+type Calculator struct {
+    value int
+}
+
+func (c *Calculator) Add(x int) {
+    c.value += x
+}
+
+func (c *Calculator) GetValue() int {
+    return c.value
+}
+
+# Interface
+type Shape interface {
+    Area() float64
+    Perimeter() float64
+}
+
+type Rectangle struct {
+    width, height float64
+}
+
+func (r Rectangle) Area() float64 {
+    return r.width * r.height
+}
+
+func (r Rectangle) Perimeter() float64 {
+    return 2 * (r.width + r.height)
+}
+
+# Goroutine example
+func worker(id int, jobs <-chan int, results chan<- int) {
+    for j := range jobs {
+        fmt.Printf("Worker %d processing job %d\n", id, j)
+        time.Sleep(time.Second)
+        results <- j * 2
+    }
+}
+
+func main() {
+    jobs := make(chan int, 100)
+    results := make(chan int, 100)
+
+    for w := 1; w <= 3; w++ {
+        go worker(w, jobs, results)
+    }
+
+    for j := 1; j <= 5; j++ {
+        jobs <- j
+    }
+    close(jobs)
+
+    for a := 1; a <= 5; a++ {
+        <-results
+    }
+}
+
+# Error handling
+func divide(a, b float64) (float64, error) {
+    if b == 0 {
+        return 0, errors.New("division by zero")
+    }
+    return a / b, nil
+}
+
+func main() {
+    result, err := divide(10, 2)
+    if err != nil {
+        fmt.Println("Error:", err)
+        return
+    }
+    fmt.Println("Result:", result)
+}
+
+# Map operations
+func main() {
+    // Create a map
+    ages := make(map[string]int)
+
+    // Add elements
+    ages["Alice"] = 25
+    ages["Bob"] = 30
+
+    // Access elements
+    fmt.Println("Alice's age:", ages["Alice"])
+
+    // Check if key exists
+    if age, exists := ages["Charlie"]; exists {
+        fmt.Println("Charlie's age:", age)
+    } else {
+        fmt.Println("Charlie not found")
+    }
+
+    // Iterate over map
+    for name, age := range ages {
+        fmt.Printf("%s is %d years old\n", name, age)
+    }
+}
+
+# Slice operations
+func main() {
+    // Create a slice
+    numbers := []int{1, 2, 3, 4, 5}
+
+    // Append elements
+    numbers = append(numbers, 6, 7)
+
+    // Slice operations
+    fmt.Println("First 3:", numbers[:3])
+    fmt.Println("Last 3:", numbers[len(numbers)-3:])
+
+    // Iterate with index
+    for i, num := range numbers {
+        fmt.Printf("Index %d: %d\n", i, num)
+    }
+}
+
+# JSON handling
+type Person struct {
+    Name string `json:"name"`
+    Age  int    `json:"age"`
+}
+
+func main() {
+    p := Person{Name: "Alice", Age: 25}
+
+    // Marshal to JSON
+    jsonData, err := json.Marshal(p)
+    if err != nil {
+        fmt.Println("Error marshaling:", err)
+        return
+    }
+    fmt.Println("JSON:", string(jsonData))
+
+    // Unmarshal from JSON
+    jsonStr := `{"name":"Bob","age":30}`
+    var p2 Person
+    err = json.Unmarshal([]byte(jsonStr), &p2)
+    if err != nil {
+        fmt.Println("Error unmarshaling:", err)
+        return
+    }
+    fmt.Printf("Person: %+v\n", p2)
+}
+
+# HTTP server
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+    fmt.Fprintf(w, "Hello, World!")
+}
+
+func main() {
+    http.HandleFunc("/", helloHandler)
+    fmt.Println("Server starting on :8080")
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
+
+# File operations
+func main() {
+    // Write to file
+    data := []byte("Hello, World!")
+    err := ioutil.WriteFile("example.txt", data, 0644)
+    if err != nil {
+        fmt.Println("Error writing file:", err)
+        return
+    }
+
+    // Read from file
+    content, err := ioutil.ReadFile("example.txt")
+    if err != nil {
+        fmt.Println("Error reading file:", err)
+        return
+    }
+    fmt.Println("File content:", string(content))
+}
+
+# Testing example
+func Add(a, b int) int {
+    return a + b
+}
+
+func TestAdd(t *testing.T) {
+    result := Add(2, 3)
+    expected := 5
+    if result != expected {
+        t.Errorf("Add(2, 3) = %d; want %d", result, expected)
+    }
+}
+
+# Command line flags
+var (
+    name = flag.String("name", "World", "name to greet")
+    count = flag.Int("count", 1, "number of greetings")
+)
+
+func main() {
+    flag.Parse()
+
+    for i := 0; i < *count; i++ {
+        fmt.Printf("Hello, %s!\n", *name)
+    }
+}
