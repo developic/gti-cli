@@ -1,0 +1,226 @@
+# C++ Language Code Snippets
+
+#include <iostream>
+#include <vector>
+#include <string>
+#include <map>
+#include <algorithm>
+
+// Basic class
+class Calculator {
+private:
+    int value;
+public:
+    Calculator() : value(0) {}
+    
+    void add(int x) {
+        value += x;
+    }
+    
+    void subtract(int x) {
+        value -= x;
+    }
+    
+    int getValue() const {
+        return value;
+    }
+};
+
+// Main function
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+    
+    Calculator calc;
+    calc.add(5);
+    calc.add(10);
+    std::cout << "Result: " << calc.getValue() << std::endl;
+    
+    return 0;
+}
+
+// Vectors
+void vectorExample() {
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    
+    // Add elements
+    numbers.push_back(6);
+    numbers.push_back(7);
+    
+    // Access elements
+    std::cout << "First element: " << numbers[0] << std::endl;
+    std::cout << "Size: " << numbers.size() << std::endl;
+    
+    // Iterate
+    for (int num : numbers) {
+        std::cout << num << " ";
+    }
+    std::cout << std::endl;
+    
+    // Algorithms
+    std::sort(numbers.begin(), numbers.end());
+    std::cout << "Sorted: ";
+    for (int num : numbers) {
+        std::cout << num << " ";
+    }
+    std::cout << std::endl;
+}
+
+// Maps
+void mapExample() {
+    std::map<std::string, int> ages;
+    
+    // Insert elements
+    ages["Alice"] = 25;
+    ages["Bob"] = 30;
+    ages["Charlie"] = 35;
+    
+    // Access elements
+    std::cout << "Alice's age: " << ages["Alice"] << std::endl;
+    
+    // Check existence
+    if (ages.find("Bob") != ages.end()) {
+        std::cout << "Bob found" << std::endl;
+    }
+    
+    // Iterate
+    for (const auto& pair : ages) {
+        std::cout << pair.first << " is " << pair.second << " years old" << std::endl;
+    }
+}
+
+// Exception handling
+double divide(double a, double b) {
+    if (b == 0) {
+        throw std::runtime_error("Division by zero!");
+    }
+    return a / b;
+}
+
+void exceptionExample() {
+    try {
+        double result = divide(10, 2);
+        std::cout << "Result: " << result << std::endl;
+        
+        // This will throw
+        divide(10, 0);
+    } catch (const std::runtime_error& e) {
+        std::cout << "Error: " << e.what() << std::endl;
+    }
+}
+
+// Templates
+template <typename T>
+class Box {
+private:
+    T value;
+public:
+    Box(T val) : value(val) {}
+    
+    T getValue() const {
+        return value;
+    }
+    
+    void setValue(T val) {
+        value = val;
+    }
+};
+
+void templateExample() {
+    Box<std::string> stringBox("Hello");
+    Box<int> intBox(42);
+    
+    std::cout << "String box: " << stringBox.getValue() << std::endl;
+    std::cout << "Int box: " << intBox.getValue() << std::endl;
+}
+
+// Smart pointers
+#include <memory>
+
+void smartPointerExample() {
+    // Unique pointer
+    std::unique_ptr<Calculator> calc = std::make_unique<Calculator>();
+    calc->add(5);
+    std::cout << "Unique ptr value: " << calc->getValue() << std::endl;
+    
+    // Shared pointer
+    std::shared_ptr<Calculator> sharedCalc = std::make_shared<Calculator>();
+    sharedCalc->add(10);
+    std::cout << "Shared ptr value: " << sharedCalc->getValue() << std::endl;
+}
+
+// Lambda functions
+void lambdaExample() {
+    std::vector<int> numbers = {1, 2, 3, 4, 5};
+    
+    // Simple lambda
+    auto square = [](int x) { return x * x; };
+    std::cout << "Square of 5: " << square(5) << std::endl;
+    
+    // Lambda with capture
+    int multiplier = 3;
+    auto multiply = [multiplier](int x) { return x * multiplier; };
+    std::cout << "5 * 3 = " << multiply(5) << std::endl;
+    
+    // Lambda with algorithms
+    std::transform(numbers.begin(), numbers.end(), numbers.begin(), 
+                   [](int x) { return x * 2; });
+    
+    std::cout << "Doubled: ";
+    for (int num : numbers) {
+        std::cout << num << " ";
+    }
+    std::cout << std::endl;
+}
+
+// File I/O
+#include <fstream>
+
+void fileExample() {
+    // Write to file
+    std::ofstream outFile("example.txt");
+    if (outFile.is_open()) {
+        outFile << "Hello, World!" << std::endl;
+        outFile << "This is a test file." << std::endl;
+        outFile.close();
+    }
+    
+    // Read from file
+    std::ifstream inFile("example.txt");
+    if (inFile.is_open()) {
+        std::string line;
+        std::cout << "File contents:" << std::endl;
+        while (std::getline(inFile, line)) {
+            std::cout << line << std::endl;
+        }
+        inFile.close();
+    }
+}
+
+// Inheritance and polymorphism
+class Shape {
+public:
+    virtual double area() const = 0;
+    virtual double perimeter() const = 0;
+    virtual ~Shape() = default;
+};
+
+class Rectangle : public Shape {
+private:
+    double width, height;
+public:
+    Rectangle(double w, double h) : width(w), height(h) {}
+    
+    double area() const override {
+        return width * height;
+    }
+    
+    double perimeter() const override {
+        return 2 * (width + height);
+    }
+};
+
+void polymorphismExample() {
+    std::unique_ptr<Shape> rect = std::make_unique<Rectangle>(5, 3);
+    std::cout << "Area: " << rect->area() << std::endl;
+    std::cout << "Perimeter: " << rect->perimeter() << std::endl;
+}
