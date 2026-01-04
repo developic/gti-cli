@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"gti/src/internal/config"
@@ -151,6 +152,25 @@ func (m *Model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleTypingKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle scrolling for code mode
+	isCodeMode := strings.Contains(m.sess.GetMode(), "code") || m.sess.GetMode() == "snippet"
+	if isCodeMode {
+		switch key.Type {
+		case tea.KeyUp:
+			m.sess.ScrollUp()
+			return m, nil
+		case tea.KeyDown:
+			m.sess.ScrollDown()
+			return m, nil
+		case tea.KeyPgUp:
+			m.sess.ScrollUpPage()
+			return m, nil
+		case tea.KeyPgDown:
+			m.sess.ScrollDownPage()
+			return m, nil
+		}
+	}
+
 	switch key.String() {
 	case "ctrl+c":
 		m.quitting = true

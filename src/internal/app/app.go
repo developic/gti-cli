@@ -127,3 +127,50 @@ func StartChallengeGame() error {
 
 	return challenge.StartChallengeGame(levels)
 }
+
+type CodeOptions struct {
+	Language string
+	Count    int
+	Seconds  int
+}
+
+func StartCodePractice(language string, count int) error {
+	return StartCodePracticeWithOptions(CodeOptions{
+		Language: language,
+		Count:    count,
+	})
+}
+
+func StartCodePracticeTimed(language string, count int, seconds int) error {
+	return StartCodePracticeWithOptions(CodeOptions{
+		Language: language,
+		Count:    count,
+		Seconds:  seconds,
+	})
+}
+
+func StartCodePracticeWithOptions(opts CodeOptions) error {
+	cfg := config.GetConfig()
+
+	mode := opts.Language + "-code"
+	if opts.Seconds > 0 {
+		mode = opts.Language + "-code-timed"
+	}
+
+	var modelOpts tui.ModelOptions
+	if opts.Count > 1 {
+		// Multiple snippets
+		sess := session.NewSessionWithCodeSnippets(cfg, opts.Language, opts.Count)
+		modelOpts = tui.ModelOptions{Session: sess}
+	} else if opts.Seconds > 0 {
+		// Timed single snippet
+		sess := session.NewSessionWithCodeSnippetTimed(cfg, opts.Language, opts.Seconds)
+		modelOpts = tui.ModelOptions{Session: sess}
+	} else {
+		// Single snippet
+		sess := session.NewSessionWithCodeSnippet(cfg, mode)
+		modelOpts = tui.ModelOptions{Session: sess}
+	}
+
+	return runTUIModel(cfg, modelOpts)
+}

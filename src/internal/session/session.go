@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
 	"gti/src/internal"
 	"gti/src/internal/config"
+	"gti/src/internal/syntax"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -176,6 +178,10 @@ type Session struct {
 	RemainingTimeDisplay  int
 	ExternalMistakes      int
 
+	// Scrolling support
+	scrollOffset          int  // Current scroll position (line number)
+	visibleLines          int  // Number of lines that can be displayed
+
 	backspaceCount    int
 	correctedErrors   int
 	uncorrectedErrors int
@@ -198,6 +204,10 @@ func NewSession(cfg *config.Config, mode string) *Session {
 	case "practice":
 		text = internal.GenerateWordsDynamic(10, cfg.Language.Default)
 	default:
+		// Check if it's a code mode
+		if strings.Contains(mode, "code") || mode == "snippet" {
+			return NewSessionWithCodeSnippet(cfg, mode)
+		}
 		text = config.DefaultPracticeText
 	}
 	session := &Session{
@@ -313,6 +323,62 @@ func NewSessionWithChunkLimit(cfg *config.Config, maxChunks int) *Session {
 		isGroupMode:       isGroupMode,
 		pageSize:          pageSize,
 		currentPageChunks: currentPageChunks,
+	}
+}
+
+func NewSessionWithCodeSnippet(cfg *config.Config, mode string) *Session {
+	// Extract language from mode (e.g., "go-code" -> "go")
+	language := "go" // default
+	if strings.Contains(mode, "python") {
+		language = "python"
+	} else if strings.Contains(mode, "javascript") {
+		language = "javascript"
+	} else if strings.Contains(mode, "java") {
+		language = "java"
+	} else if strings.Contains(mode, "cpp") {
+		language = "cpp"
+	} else if strings.Contains(mode, "rust") {
+		language = "rust"
+	} else if strings.Contains(mode, "typescript") {
+		language = "typescript"
+	}
+
+	// Generate code snippet
+	text := internal.GenerateCodeSnippet(language)
+
+	return &Session{
+		config: cfg,
+		mode:   mode,
+		text:   text,
+	}
+}
+
+func NewSessionWithCodeSnippets(cfg *config.Config, language string, count int) *Session {
+	if count <= 0 {
+		count = 1
+	}
+	if count > 10 {
+		count = 10
+	}
+
+	// Generate multiple code snippets
+	text := internal.GenerateCodeSnippets(count, language)
+
+	return &Session{
+		config: cfg,
+		mode:   language + "-code",
+		text:   text,
+	}
+}
+
+func NewSessionWithCodeSnippetTimed(cfg *config.Config, language string, seconds int) *Session {
+	text := internal.GenerateCodeSnippet(language)
+
+	return &Session{
+		config:    cfg,
+		mode:      language + "-code-timed",
+		text:      text,
+		timeLimit: time.Duration(seconds) * time.Second,
 	}
 }
 
@@ -935,6 +1001,14 @@ func (s *Session) findCurrentWordBoundaries() (int, int) {
 }
 
 func (s *Session) renderTextContent() string {
+	// Check if this is code mode
+	isCodeMode := strings.Contains(s.mode, "code") || s.mode == "snippet"
+
+	if isCodeMode {
+		return s.renderCodeContent()
+	}
+
+	// Original word-based rendering for non-code modes
 	wordStart, wordEnd := s.findCurrentWordBoundaries()
 
 	var rendered strings.Builder
@@ -967,6 +1041,210 @@ func (s *Session) renderTextContent() string {
 	return rendered.String()
 }
 
+func (s *Session) renderCodeContent() string {
+	lines := strings.Split(s.text, "\n")
+
+	// Determine language from mode or use default
+	language := "go" // default
+	if strings.Contains(s.mode, "python") {
+		language = "python"
+	} else if strings.Contains(s.mode, "javascript") {
+		language = "javascript"
+	} else if strings.Contains(s.mode, "java") {
+		language = "java"
+	} else if strings.Contains(s.mode, "cpp") {
+		language = "cpp"
+	} else if strings.Contains(s.mode, "rust") {
+		language = "rust"
+	} else if strings.Contains(s.mode, "typescript") {
+		language = "typescript"
+	}
+
+	// Apply syntax highlighting
+	highlighter := syntax.NewHighlighter(s.config)
+	highlightedText := highlighter.Highlight(s.text, language)
+
+	highlightedLines := strings.Split(highlightedText, "\n")
+
+	// Calculate line number width
+	maxLineNum := len(lines)
+	lineNumWidth := len(strconv.Itoa(maxLineNum))
+
+	// Auto-scroll to keep current position visible
+	s.autoScrollToCurrentPosition(lines)
+
+	// Determine visible lines based on scrolling
+	startLine := s.scrollOffset
+	endLine := startLine + s.visibleLines
+	if endLine > len(lines) {
+		endLine = len(lines)
+	}
+
+	var renderedLines []string
+
+	// Track global character position
+	globalPos := 0
+	for i := 0; i < startLine; i++ {
+		globalPos += len(lines[i]) + 1 // +1 for newline
+	}
+
+	for lineIdx := startLine; lineIdx < endLine && lineIdx < len(lines); lineIdx++ {
+		line := lines[lineIdx]
+		var lineStr strings.Builder
+
+		// Add line number if enabled
+		showLineNumbers := true // This should come from config
+		if showLineNumbers {
+			lineNum := strconv.Itoa(lineIdx + 1)
+			lineNumPadded := fmt.Sprintf("%*s", lineNumWidth, lineNum)
+			lineStr.WriteString(lipgloss.NewStyle().
+				Foreground(lipgloss.Color(s.config.Theme.Colors.TextSecondary)).
+				Render(lineNumPadded + " "))
+		}
+
+		// Add the highlighted line content with character-level coloring
+		if lineIdx < len(highlightedLines) {
+			// Apply character-level typing colors
+			for charIdx, char := range line {
+				currentGlobalPos := globalPos + charIdx
+
+				style := lipgloss.NewStyle().Background(lipgloss.Color(s.config.Theme.Colors.Background))
+
+				if currentGlobalPos < s.position {
+					if currentGlobalPos < len(s.userInput) && rune(s.userInput[currentGlobalPos]) == char {
+						style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Correct))
+					} else {
+						style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Incorrect))
+					}
+				} else if currentGlobalPos == s.position {
+					style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.WordHighlight)).Faint(true)
+					if s.config.Theme.Styles.UnderlineCurrent {
+						style = style.Underline(true)
+					}
+				} else {
+					style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Pending))
+					if s.config.Theme.Styles.DimPending {
+						style = style.Faint(true)
+					}
+				}
+
+				lineStr.WriteString(style.Render(string(char)))
+			}
+		}
+
+		renderedLines = append(renderedLines, lineStr.String())
+		globalPos += len(line) + 1 // +1 for newline
+	}
+
+	return strings.Join(renderedLines, "\n")
+}
+
+// autoScrollToCurrentPosition automatically scrolls to keep the current typing position visible
+func (s *Session) autoScrollToCurrentPosition(lines []string) {
+	if len(lines) == 0 || s.visibleLines <= 0 {
+		return
+	}
+
+	// Find which line contains the current position
+	currentLine := 0
+	charCount := 0
+	for i, line := range lines {
+		lineLen := len(line) + 1 // +1 for newline
+		if charCount+lineLen > s.position {
+			currentLine = i
+			break
+		}
+		charCount += lineLen
+	}
+
+	// Ensure current line is visible
+	if currentLine < s.scrollOffset {
+		s.scrollOffset = currentLine
+	} else if currentLine >= s.scrollOffset+s.visibleLines {
+		s.scrollOffset = currentLine - s.visibleLines + 1
+	}
+
+	// Ensure scroll offset is within bounds
+	maxScroll := len(lines) - s.visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if s.scrollOffset > maxScroll {
+		s.scrollOffset = maxScroll
+	}
+	if s.scrollOffset < 0 {
+		s.scrollOffset = 0
+	}
+}
+
+// ScrollUp scrolls up smoothly
+func (s *Session) ScrollUp() {
+	if s.scrollOffset > 0 {
+		// Smooth scrolling - scroll by smaller increments
+		scrollAmount := 1
+		if s.visibleLines > 10 {
+			scrollAmount = 1 // Keep it to 1 line for better control
+		}
+		s.scrollOffset -= scrollAmount
+		if s.scrollOffset < 0 {
+			s.scrollOffset = 0
+		}
+		s.layoutDirty = true
+	}
+}
+
+// ScrollDown scrolls down smoothly
+func (s *Session) ScrollDown() {
+	lines := strings.Split(s.text, "\n")
+	maxScroll := len(lines) - s.visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	if s.scrollOffset < maxScroll {
+		// Smooth scrolling - scroll by smaller increments
+		scrollAmount := 1
+		if s.visibleLines > 10 {
+			scrollAmount = 1 // Keep it to 1 line for better control
+		}
+		s.scrollOffset += scrollAmount
+		if s.scrollOffset > maxScroll {
+			s.scrollOffset = maxScroll
+		}
+		s.layoutDirty = true
+	}
+}
+
+// ScrollUpPage scrolls up by one page
+func (s *Session) ScrollUpPage() {
+	scrollAmount := s.visibleLines - 1 // Keep one line of overlap
+	if scrollAmount < 1 {
+		scrollAmount = 1
+	}
+	s.scrollOffset -= scrollAmount
+	if s.scrollOffset < 0 {
+		s.scrollOffset = 0
+	}
+	s.layoutDirty = true
+}
+
+// ScrollDownPage scrolls down by one page
+func (s *Session) ScrollDownPage() {
+	lines := strings.Split(s.text, "\n")
+	scrollAmount := s.visibleLines - 1 // Keep one line of overlap
+	if scrollAmount < 1 {
+		scrollAmount = 1
+	}
+	maxScroll := len(lines) - s.visibleLines
+	if maxScroll < 0 {
+		maxScroll = 0
+	}
+	s.scrollOffset += scrollAmount
+	if s.scrollOffset > maxScroll {
+		s.scrollOffset = maxScroll
+	}
+	s.layoutDirty = true
+}
+
 func (s *Session) renderText(width, height int) string {
 	content := s.renderTextContent()
 
@@ -983,6 +1261,12 @@ func (s *Session) renderText(width, height int) string {
 
 	if textHeight < 1 {
 		textHeight = 1
+	}
+
+	// Update visible lines for scrolling (only for code mode)
+	isCodeMode := strings.Contains(s.mode, "code") || s.mode == "snippet"
+	if isCodeMode {
+		s.visibleLines = textHeight
 	}
 
 	dynamicWidth := s.calculateDynamicWidth(content, width)
@@ -1019,7 +1303,13 @@ func (s *Session) renderTip(width int) string {
 }
 
 func (s *Session) renderHint(width int) string {
-	hint := "Esc: Restart | Ctrl+H: Help | Ctrl+W: TTS | Ctrl+Q: Quit"
+	isCodeMode := strings.Contains(s.mode, "code") || s.mode == "snippet"
+	var hint string
+	if isCodeMode {
+		hint = "↑↓: Scroll | PgUp/PgDn: Page | Esc: Restart | Ctrl+H: Help | Ctrl+Q: Quit"
+	} else {
+		hint = "Esc: Restart | Ctrl+H: Help | Ctrl+W: TTS | Ctrl+Q: Quit"
+	}
 	return s.renderCenteredText(hint, s.config.Theme.Colors.TextSecondary, width)
 }
 

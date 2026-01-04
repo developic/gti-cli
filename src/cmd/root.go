@@ -37,6 +37,7 @@ QUICK START
 COMMANDS
   quote                  Start with random quotes
   challenge              Progressive challenge with levels
+  code                   Practice typing with code snippets
   statistics             View detailed typing statistics
   theme <command>        Manage color themes
   config <command>       View and manage configuration
@@ -118,6 +119,7 @@ func init() {
 
 	rootCmd.AddCommand(quoteCmd)
 	rootCmd.AddCommand(challengeCmd)
+	rootCmd.AddCommand(codeCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(themeCmd)
 	rootCmd.AddCommand(statisticsCmd)
