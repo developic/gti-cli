@@ -73,6 +73,7 @@ Remove-Item "C:\Tools\gti.exe" -Force
 - **Timed Tests**: Set custom time limits for focused practice sessions
 - **Custom Text**: Practice with your own text files
 - **Random Quotes**: Type inspirational and famous quotes
+- **Code Snippets**: Practice typing with real code from Go, Python, JavaScript, Java, C++, Rust, and TypeScript
 - **Progressive Challenges**: Level-based challenges with increasing difficulty
 - **Statistics Tracking**: Comprehensive typing statistics and progress tracking
 - **Multi-language Support**: Practice in 25+ languages including English, Spanish, French, German, Japanese, and more
@@ -105,6 +106,7 @@ gti -c text.txt
 | `gti` | Start practice mode |
 | `gti quote` | Start with random quotes |
 | `gti challenge` | Progressive challenge with levels |
+| `gti code` | Practice typing with code snippets |
 | `gti statistics` | View detailed typing statistics |
 | `gti theme` | Manage color themes |
 | `gti config` | View and manage configuration |
@@ -135,6 +137,15 @@ gti -c document.txt --start 5
 
 # Practice in Spanish
 gti -l spanish
+
+# Practice Go code (default)
+gti code
+
+# Practice Python code with 3 snippets
+gti code python -n 3
+
+# Practice JavaScript code for 60 seconds
+gti code javascript -t 60
 
 # Show keyboard shortcuts
 gti -s
@@ -186,4 +197,3 @@ We welcome contributions! Here's how you can help:
 ## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
