@@ -82,15 +82,10 @@ CONTROLS:
 		cfg := config.GetConfig()
 
 		if statsFlags.view != "" {
-			validViews := []string{"session", "daily", "weekly", "all-time"}
-			isValid := false
-			for _, v := range validViews {
-				if statsFlags.view == v {
-					isValid = true
-					break
-				}
+			validViews := map[string]bool{
+				"session": true, "daily": true, "weekly": true, "all-time": true,
 			}
-			if !isValid {
+			if !validViews[statsFlags.view] {
 				return fmt.Errorf("invalid view '%s'. Valid options: session, daily, weekly, all-time", statsFlags.view)
 			}
 		}

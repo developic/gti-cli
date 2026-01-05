@@ -138,6 +138,75 @@ type statsStyles struct {
 	monoWidth int
 }
 
+// StyleFactory creates lipgloss styles with configurable parameters
+type StyleFactory struct {
+	colors config.ThemeColorsConfig
+}
+
+// NewStyleFactory creates a new style factory with the given color configuration
+func NewStyleFactory(colors config.ThemeColorsConfig) *StyleFactory {
+	return &StyleFactory{colors: colors}
+}
+
+// CreateStyle creates a lipgloss style with the specified configuration
+func (f *StyleFactory) CreateStyle(config StyleConfig) lipgloss.Style {
+	style := lipgloss.NewStyle()
+
+	if config.Foreground != "" {
+		style = style.Foreground(lipgloss.Color(f.getColor(config.Foreground)))
+	}
+
+	if config.Background != "" {
+		style = style.Background(lipgloss.Color(f.getColor(config.Background)))
+	}
+
+	if config.Bold {
+		style = style.Bold(true)
+	}
+
+	if config.Border != "" {
+		style = style.Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(f.getColor(config.Border)))
+	}
+
+	if config.PaddingX > 0 || config.PaddingY > 0 {
+		style = style.Padding(config.PaddingY, config.PaddingX)
+	}
+
+	return style
+}
+
+// StyleConfig defines the configuration for creating a lipgloss style
+type StyleConfig struct {
+	Foreground string
+	Background string
+	Bold       bool
+	Border     string
+	PaddingX   int
+	PaddingY   int
+}
+
+// getColor maps color names to actual color values from the theme
+func (f *StyleFactory) getColor(name string) string {
+	switch name {
+	case "accent":
+		return f.colors.Accent
+	case "textPrimary":
+		return f.colors.TextPrimary
+	case "textSecondary":
+		return f.colors.TextSecondary
+	case "correct":
+		return f.colors.Correct
+	case "incorrect":
+		return f.colors.Incorrect
+	case "background":
+		return f.colors.Background
+	case "border":
+		return f.colors.Border
+	default:
+		return f.colors.TextPrimary
+	}
+}
+
 func NewStatisticsModel(cfg *config.Config) StatisticsModel {
 	records, _ := session.LoadSessionRecords(cfg)
 
@@ -156,93 +225,23 @@ func NewStatisticsModel(cfg *config.Config) StatisticsModel {
 }
 
 func newStatsStyles(cfg *config.Config) statsStyles {
-	colors := cfg.Theme.Colors
+	factory := NewStyleFactory(cfg.Theme.Colors)
 
 	return statsStyles{
 		base:    lipgloss.NewStyle(),
-		title:   createTitleStyle(colors),
-		section: createSectionStyle(colors),
-		subtle:  createSubtleStyle(colors),
-		key:     createKeyStyle(colors),
-		val:     createValStyle(colors),
-		good:    createGoodStyle(colors),
-		bad:     createBadStyle(colors),
-		accent:  createAccentStyle(colors),
-		viewOn:  createViewOnStyle(colors),
-		viewOff: createViewOffStyle(colors),
-		box:     createBoxStyle(colors),
-		footer:  createFooterStyle(colors),
+		title:   factory.CreateStyle(StyleConfig{Foreground: "accent", Bold: true}),
+		section: factory.CreateStyle(StyleConfig{Foreground: "accent", Bold: true}),
+		subtle:  factory.CreateStyle(StyleConfig{Foreground: "textSecondary"}),
+		key:     factory.CreateStyle(StyleConfig{Foreground: "textPrimary"}),
+		val:     factory.CreateStyle(StyleConfig{Foreground: "textPrimary"}),
+		good:    factory.CreateStyle(StyleConfig{Foreground: "correct"}),
+		bad:     factory.CreateStyle(StyleConfig{Foreground: "incorrect"}),
+		accent:  factory.CreateStyle(StyleConfig{Foreground: "accent", Bold: true}),
+		viewOn:  factory.CreateStyle(StyleConfig{Foreground: "background", Background: "accent", Bold: true, PaddingX: 1}),
+		viewOff: factory.CreateStyle(StyleConfig{Foreground: "textSecondary", Background: "border", PaddingX: 1}),
+		box:     factory.CreateStyle(StyleConfig{Border: "border", PaddingX: 1}),
+		footer:  factory.CreateStyle(StyleConfig{Foreground: "textSecondary"}),
 	}
-}
-
-func createTitleStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.Accent)).
-		Bold(true)
-}
-
-func createSectionStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.Accent)).
-		Bold(true)
-}
-
-func createSubtleStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.TextSecondary))
-}
-
-func createKeyStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.TextPrimary))
-}
-
-func createValStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.TextPrimary))
-}
-
-func createGoodStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.Correct))
-}
-
-func createBadStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.Incorrect))
-}
-
-func createAccentStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.Accent)).
-		Bold(true)
-}
-
-func createViewOnStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.Background)).
-		Background(lipgloss.Color(colors.Accent)).
-		Bold(true).
-		Padding(0, 1)
-}
-
-func createViewOffStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.TextSecondary)).
-		Background(lipgloss.Color(colors.Border)).
-		Padding(0, 1)
-}
-
-func createBoxStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colors.Border)).
-		Padding(0, 1)
-}
-
-func createFooterStyle(colors config.ThemeColorsConfig) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.TextSecondary))
 }
 
 func centerText(text string, width int) string {

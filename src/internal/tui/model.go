@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"gti/src/internal"
 	"gti/src/internal/config"
 	"gti/src/internal/session"
 
@@ -46,11 +47,14 @@ func NewModel(cfg *config.Config, opts ModelOptions) Model {
 	if opts.Session != nil {
 		sess = opts.Session
 	} else if opts.File != "" && opts.Seconds > 0 {
-		sess = session.NewSessionWithCustomTimed(cfg, opts.File, opts.Start, opts.Seconds)
+		paragraphs := session.LoadParagraphs(opts.File)
+		text := session.GetParagraphAtStart(paragraphs, opts.Start)
+		sess = session.NewSessionTimed(cfg, "custom-timed", text, paragraphs, opts.Start-1, opts.Seconds)
 	} else if opts.File != "" {
 		sess = session.NewSessionWithCustomText(cfg, opts.Mode, opts.File, opts.Start)
 	} else if opts.Seconds > 0 {
-		sess = session.NewSessionWithTimed(cfg, opts.Seconds)
+		text := internal.GenerateWordsDynamic(session.DefaultWordCount, cfg.Language.Default)
+		sess = session.NewSessionTimed(cfg, "timed", text, nil, 0, opts.Seconds)
 	} else {
 		sess = session.NewSession(cfg, opts.Mode)
 	}
@@ -204,51 +208,10 @@ func (m Model) viewTyping() string {
 		Render(placedContent)
 }
 
-func (m Model) viewHelp() string {
-	helpText := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Render("Help overlay - Press ESC to close\n\nShortcuts:\nCtrl+Q: Quit\nCtrl+C: Force quit\nEsc: Restart\nCtrl+H: Help\nCtrl+W: TTS\nBackspace: Delete\nLeft/Right: Navigate segments")
-
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
-		BorderBackground(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Padding(1, 2).
-		Align(lipgloss.Center).
-		Render(helpText)
-
-	placedBox := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.config.Theme.Colors.Background)))
-
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Render(placedBox)
-}
-
-func (m Model) viewResults() string {
-	calculator := session.NewResultsCalculator()
-	results := calculator.CalculateResults(m.sess, m.sess.GetMode())
-
-	action := "Press Enter to restart or Esc to exit"
-
-	content := fmt.Sprintf(`Results
-
-WPM: %.1f
-Accuracy: %.1f%%
-CPM: %.1f
-Duration: %.2fs
-Mistakes: %d
-
-%s`, results.WPM, results.Accuracy, results.CPM, results.Duration.Seconds(), results.Mistakes, action)
-
+func (m Model) createStyledBox(content string, paddingX, paddingY int) string {
 	styledContent := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
 		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Align(lipgloss.Center).
 		Render(content)
 
 	box := lipgloss.NewStyle().
@@ -256,7 +219,8 @@ Mistakes: %d
 		BorderForeground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
 		BorderBackground(lipgloss.Color(m.config.Theme.Colors.Background)).
 		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Padding(3, 4).
+		Padding(paddingY, paddingX).
+		Align(lipgloss.Center).
 		Render(styledContent)
 
 	placedBox := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
@@ -269,29 +233,31 @@ Mistakes: %d
 		Render(placedBox)
 }
 
+func (m Model) viewHelp() string {
+	helpText := "Help overlay - Press ESC to close\n\nShortcuts:\nCtrl+Q: Quit\nCtrl+C: Force quit\nEsc: Restart\nCtrl+H: Help\nCtrl+W: TTS\nBackspace: Delete\nLeft/Right: Navigate segments"
+	return m.createStyledBox(helpText, 2, 1)
+}
+
+func (m Model) viewResults() string {
+	calculator := session.NewResultsCalculator()
+	results := calculator.CalculateResults(m.sess, m.sess.GetMode())
+
+	content := fmt.Sprintf(`Results
+
+WPM: %.1f
+Accuracy: %.1f%%
+CPM: %.1f
+Duration: %.2fs
+Mistakes: %d
+
+Press Enter to restart or Esc to exit`, results.WPM, results.Accuracy, results.CPM, results.Duration.Seconds(), results.Mistakes)
+
+	return m.createStyledBox(content, 4, 3)
+}
+
 func (m Model) viewQuit() string {
-	quitText := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Render(`Are you sure you want to quit?
+	quitText := `Are you sure you want to quit?
 
-"Quit?" (y/n)`)
-
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
-		BorderBackground(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Padding(2, 4).
-		Align(lipgloss.Center).
-		Render(quitText)
-
-	placedBox := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.config.Theme.Colors.Background)))
-
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Render(placedBox)
+"Quit?" (y/n)`
+	return m.createStyledBox(quitText, 4, 2)
 }

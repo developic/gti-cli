@@ -1,10 +1,8 @@
 package session
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
+	"hash/fnv"
 	"os"
 	"os/exec"
 	"runtime"
@@ -14,10 +12,36 @@ import (
 
 	"gti/src/internal"
 	"gti/src/internal/config"
-	"gti/src/internal/syntax"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	// Word and text generation constants
+	DefaultWordCount         = 10
+	MaxQuoteCount           = 10
+	CharsPerWord            = 5.0
+	DefaultTimedSeconds     = 60
+
+	// Rendering constants
+	RenderWindowSize        = 200
+	ScrollSpeed             = 3
+	MinScrollIncrement      = 1
+	ScrollOverlap           = 1
+
+	// UI width thresholds
+	MinWidthNarrow          = 40
+	MinWidthMedium          = 60
+	MinWidthWide            = 80
+
+	// Time thresholds
+	MinValidDurationSeconds = 15
+	MinValidTextLength      = 60
+
+	// Percentage and calculation constants
+	PercentDenominator      = 100.0
+	WordLengthEstimate      = 5.5
 )
 
 var Tips = []string{
@@ -46,142 +70,55 @@ type Quote struct {
 	Author string
 }
 
-type QuoteResponse struct {
-	Q string `json:"q"`
-	A string `json:"a"`
+// Embedded structs for better organization
+type SessionState struct {
+	position            int
+	mistakes            int
+	totalChars          int
+	totalMistakes       int
+	totalChunks         int
+	maxChunks           int
+	chunkIndex          int
+	isGroupMode         bool
+	pageSize            int
+	currentPageChunks   int
 }
 
-func FetchQuote(cfg *config.Config) string {
-	q := FetchQuoteWithAuthor(cfg)
-	return q.Text
+type Timing struct {
+	startTime  time.Time
+	duration   time.Duration
+	timeLimit  time.Duration
+	timer      *time.Timer
+	running    bool
+	completed  bool
 }
 
-func FetchQuoteWithAuthor(cfg *config.Config) Quote {
-	client := &http.Client{
-		Timeout: time.Duration(cfg.Network.TimeoutMs) * time.Millisecond,
-	}
-
-	resp, err := client.Get("https://zenquotes.io/api/random")
-	if err != nil {
-		return Quote{Text: config.DefaultPracticeText, Author: "Unknown"}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return Quote{Text: config.DefaultPracticeText, Author: "Unknown"}
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return Quote{Text: config.DefaultPracticeText, Author: "Unknown"}
-	}
-
-	var quotes []QuoteResponse
-	err = json.Unmarshal(body, &quotes)
-	if err != nil {
-		return Quote{Text: config.DefaultPracticeText, Author: "Unknown"}
-	}
-
-	if len(quotes) == 0 {
-		return Quote{Text: config.DefaultPracticeText, Author: "Unknown"}
-	}
-
-	quote := quotes[0]
-	if quote.Q == "" {
-		return Quote{Text: config.DefaultPracticeText, Author: "Unknown"}
-	}
-
-	return Quote{Text: quote.Q, Author: quote.A}
+type TextData struct {
+	text       string
+	author     string
+	userInput  string
+	allChunks  []string
 }
 
-func FetchMultipleQuotes(cfg *config.Config, count int) []Quote {
-	if count <= 0 {
-		count = 1
-	}
-	if count > 10 {
-		count = 10
-	}
-
-	var quotes []Quote
-	client := &http.Client{
-		Timeout: time.Duration(cfg.Network.TimeoutMs) * time.Millisecond,
-	}
-
-	for i := 0; i < count; i++ {
-		resp, err := client.Get("https://zenquotes.io/api/random")
-		if err != nil {
-			quotes = append(quotes, Quote{Text: config.DefaultPracticeText, Author: "Unknown"})
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			quotes = append(quotes, Quote{Text: config.DefaultPracticeText, Author: "Unknown"})
-			continue
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			quotes = append(quotes, Quote{Text: config.DefaultPracticeText, Author: "Unknown"})
-			continue
-		}
-
-		var quoteResponses []QuoteResponse
-		err = json.Unmarshal(body, &quoteResponses)
-		if err != nil || len(quoteResponses) == 0 {
-			quotes = append(quotes, Quote{Text: config.DefaultPracticeText, Author: "Unknown"})
-			continue
-		}
-
-		qr := quoteResponses[0]
-		if qr.Q != "" {
-			quotes = append(quotes, Quote{Text: qr.Q, Author: qr.A})
-		} else {
-			quotes = append(quotes, Quote{Text: config.DefaultPracticeText, Author: "Unknown"})
-		}
-	}
-
-	if len(quotes) == 0 {
-		return []Quote{{Text: config.DefaultPracticeText, Author: "Unknown"}}
-	}
-
-	return quotes
-}
-
-type Session struct {
-	config                *config.Config
-	mode                  string
-	tier                  string
-	text                  string
-	author                string
-	userInput             string
-	position              int
-	mistakes              int
-	totalChars            int
-	totalMistakes         int
-	totalChunks           int
-	maxChunks             int
-	allChunks             []string
-	chunkIndex            int
-	isGroupMode           bool
-	pageSize              int
-	currentPageChunks     int
-	startTime             time.Time
-	duration              time.Duration
-	timeLimit             time.Duration
-	timer                 *time.Timer
-	running               bool
-	completed             bool
+type UIState struct {
 	layoutDirty           bool
 	showContext           bool
 	ttsUnavailableMessage string
 	RemainingTimeDisplay  int
 	ExternalMistakes      int
+}
 
-	// Scrolling support
-	scrollOffset          int  // Current scroll position (line number)
-	visibleLines          int  // Number of lines that can be displayed
+type Scrolling struct {
+	scrollOffset int
+	visibleLines int
+}
 
+type Performance struct {
+	cachedLines []string
+	textHash    uint32
+}
+
+type Statistics struct {
 	backspaceCount    int
 	correctedErrors   int
 	uncorrectedErrors int
@@ -189,141 +126,254 @@ type Session struct {
 	avgWordLength     float64
 }
 
+type SessionConfig struct {
+	Mode         string
+	Tier         string
+	Text         string
+	Author       string
+	AllChunks    []string
+	ChunkIndex   int
+	MaxChunks    int
+	TimeLimit    time.Duration
+	QuoteList    []Quote
+	Language     string
+	CodeCount    int
+	File         string
+	Start        int
+}
+
+// NewSessionWithOptions creates a session using the unified SessionConfig
+func NewSessionWithOptions(cfg *config.Config, sessionConfig SessionConfig) *Session {
+	session := &Session{
+		config: cfg,
+		mode:   sessionConfig.Mode,
+		tier:   sessionConfig.Tier,
+	}
+
+	// Set text and related fields based on configuration
+	session.setTextFromConfig(sessionConfig)
+
+	// Set timing
+	if sessionConfig.TimeLimit > 0 {
+		session.timeLimit = sessionConfig.TimeLimit
+	}
+
+	// Set chunk index if specified
+	if sessionConfig.ChunkIndex != 0 {
+		session.chunkIndex = sessionConfig.ChunkIndex
+	}
+
+	// Set all chunks if provided
+	if len(sessionConfig.AllChunks) > 0 {
+		session.allChunks = sessionConfig.AllChunks
+	}
+
+	session.calculateAvgWordLength()
+	return session
+}
+
+// setTextFromConfig sets the text and related fields based on the session configuration
+func (s *Session) setTextFromConfig(sessionConfig SessionConfig) {
+	// Set text and related fields based on configuration
+	if sessionConfig.Text != "" {
+		s.text = sessionConfig.Text
+		s.author = sessionConfig.Author
+	} else if sessionConfig.File != "" {
+		// Load from file
+		if sessionConfig.Mode == "code" {
+			if sessionConfig.Start == 1 {
+				// For code mode with default start, load entire file as one snippet
+				text, err := loadTextFromFile(sessionConfig.File)
+				if err != nil {
+					s.text = config.DefaultPracticeText
+				} else {
+					s.text = text
+				}
+			} else {
+				// For code mode with custom start, load lines in chunks of 6 starting from specified chunk
+				paragraphs := loadParagraphs(sessionConfig.File)
+				linesPerChunk := 6
+				chunkIndex := sessionConfig.Start - 1 // 0-based chunk index
+				if chunkIndex < 0 {
+					chunkIndex = 0
+				}
+
+				startLine := chunkIndex * linesPerChunk
+				endLine := startLine + linesPerChunk
+				if endLine > len(paragraphs) {
+					endLine = len(paragraphs)
+				}
+				if startLine >= len(paragraphs) {
+					startLine = len(paragraphs) - 1
+					endLine = len(paragraphs)
+				}
+
+				// Collect lines for this chunk
+				var selectedParagraphs []string
+				for i := startLine; i < endLine; i++ {
+					selectedParagraphs = append(selectedParagraphs, paragraphs[i])
+				}
+
+				s.text = strings.Join(selectedParagraphs, "\n")
+				s.allChunks = paragraphs
+				s.chunkIndex = startLine // Store the starting line index for line numbering
+			}
+		} else {
+			// For other modes, split into paragraphs
+			paragraphs := loadParagraphs(sessionConfig.File)
+			s.text = getParagraphAtStart(paragraphs, sessionConfig.Start)
+			s.allChunks = paragraphs
+			s.chunkIndex = sessionConfig.Start - 1
+		}
+	} else if len(sessionConfig.QuoteList) > 0 {
+		// Handle quotes
+		if len(sessionConfig.QuoteList) == 1 {
+			s.text = sessionConfig.QuoteList[0].Text
+			s.author = sessionConfig.QuoteList[0].Author
+		} else {
+			var quoteTexts []string
+			for _, q := range sessionConfig.QuoteList {
+				quoteTexts = append(quoteTexts, q.Text)
+			}
+			s.text = quoteTexts[0]
+			s.allChunks = quoteTexts
+			s.author = sessionConfig.QuoteList[0].Author
+			s.chunkIndex = 0
+		}
+	} else if sessionConfig.Language != "" && sessionConfig.CodeCount > 0 {
+		// Generate multiple code snippets
+		s.text = internal.GenerateCodeSnippets(sessionConfig.CodeCount, sessionConfig.Language)
+	} else if sessionConfig.Language != "" {
+		// Generate single code snippet
+		s.text = internal.GenerateCodeSnippet(sessionConfig.Language)
+		if !strings.Contains(sessionConfig.Mode, "code") {
+			s.mode = sessionConfig.Language + "-code"
+		}
+		} else if sessionConfig.MaxChunks > 0 {
+			// Practice mode with chunk limit
+			isGroupMode := sessionConfig.MaxChunks > 2
+			pageSize := 3
+			var currentPageChunks int
+			if sessionConfig.MaxChunks <= 1 || !isGroupMode {
+				s.text = internal.GenerateWordsDynamic(16, s.config.Language.Default)
+				pageSize = 1
+				currentPageChunks = 1
+			} else {
+				currentPageChunks = min(pageSize, sessionConfig.MaxChunks)
+				var chunks []string
+				for i := 0; i < currentPageChunks; i++ {
+					chunks = append(chunks, internal.GenerateWordsDynamic(17, s.config.Language.Default))
+				}
+				s.text = strings.Join(chunks, "\n\n")
+			}
+			s.maxChunks = sessionConfig.MaxChunks
+			s.isGroupMode = isGroupMode
+			s.pageSize = pageSize
+			s.currentPageChunks = currentPageChunks
+		} else {
+			// Default text generation based on mode
+			switch sessionConfig.Mode {
+			case "words":
+				s.text = internal.GenerateWordsDynamic(DefaultWordCount, s.config.Language.Default)
+				s.timeLimit = time.Duration(DefaultTimedSeconds) * time.Second
+			case "timed":
+				s.text = internal.GenerateWordsDynamic(DefaultWordCount, s.config.Language.Default)
+				s.timeLimit = time.Duration(s.config.Timed.DefaultSeconds) * time.Second
+			case "practice":
+				s.text = internal.GenerateWordsDynamic(DefaultWordCount, s.config.Language.Default)
+			case "quote":
+				s.text = config.DefaultPracticeText
+			default:
+				s.text = config.DefaultPracticeText
+			}
+		}
+}
+
+type Session struct {
+	config *config.Config
+	mode   string
+	tier   string
+
+	SessionState
+	TextData
+	Timing
+	UIState
+	Scrolling
+	Performance
+	Statistics
+}
+
+// saveRecord saves a session record with the given mistakes count
+func (s *Session) saveRecord(mistakes int) {
+	record := &SessionRecord{
+		Mode:              s.mode,
+		Tier:              s.tier,
+		TextLength:        len(s.text),
+		DurationMs:        s.duration.Milliseconds(),
+		WPM:               s.CalculateWPM(),
+		CPM:               s.CalculateCPM(),
+		Accuracy:          s.CalculateAccuracy(),
+		Mistakes:          mistakes,
+		QuoteAuthor:       s.author,
+		NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
+		AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
+		CorrectedErrors:   s.GetCorrectedErrors(),
+		UncorrectedErrors: s.GetUncorrectedErrors(),
+		BackspaceCount:    s.GetBackspaceCount(),
+		AvgWordLength:     s.GetAvgWordLength(),
+	}
+	SaveSessionRecord(s.config, record)
+}
+
 func NewSession(cfg *config.Config, mode string) *Session {
-	var text string
-	var timeLimit time.Duration
+	config := SessionConfig{Mode: mode}
+
 	switch mode {
 	case "words":
-		text = internal.GenerateWordsDynamic(10, cfg.Language.Default)
-		timeLimit = time.Duration(60) * time.Second
-	case "quote":
-		text = FetchQuote(cfg)
+		config.TimeLimit = time.Duration(DefaultTimedSeconds) * time.Second
 	case "timed":
-		text = internal.GenerateWordsDynamic(10, cfg.Language.Default)
-		timeLimit = time.Duration(cfg.Timed.DefaultSeconds) * time.Second
-	case "practice":
-		text = internal.GenerateWordsDynamic(10, cfg.Language.Default)
+		config.TimeLimit = time.Duration(cfg.Timed.DefaultSeconds) * time.Second
+	case "quote":
+		// Quote fetching should be handled at command level
 	default:
 		// Check if it's a code mode
 		if strings.Contains(mode, "code") || mode == "snippet" {
 			return NewSessionWithCodeSnippet(cfg, mode)
 		}
-		text = config.DefaultPracticeText
 	}
-	session := &Session{
-		config:    cfg,
-		mode:      mode,
-		text:      text,
-		timeLimit: timeLimit,
-	}
-	session.calculateAvgWordLength()
-	return session
+
+	return NewSessionWithOptions(cfg, config)
 }
 
 func NewSessionWithCustomText(cfg *config.Config, mode, file string, start int) *Session {
-	paragraphs := loadParagraphs(file)
-	text := getParagraphAtStart(paragraphs, start)
-
-	return &Session{
-		config:     cfg,
-		mode:       mode,
-		text:       text,
-		allChunks:  paragraphs,
-		chunkIndex: start - 1,
-	}
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:  mode,
+		File:  file,
+		Start: start,
+	})
 }
 
-func NewSessionWithTimed(cfg *config.Config, seconds int) *Session {
-	return &Session{
-		config:    cfg,
-		mode:      "timed",
-		text:      internal.GenerateWordsDynamic(10, cfg.Language.Default),
-		timeLimit: time.Duration(seconds) * time.Second,
-	}
-}
 
-func NewSessionWithCustomTimed(cfg *config.Config, file string, start int, seconds int) *Session {
-	paragraphs := loadParagraphs(file)
-	text := getParagraphAtStart(paragraphs, start)
-
-	return &Session{
-		config:     cfg,
-		mode:       "custom-timed",
-		text:       text,
-		allChunks:  paragraphs,
-		chunkIndex: start - 1,
-		timeLimit:  time.Duration(seconds) * time.Second,
-	}
-}
 
 func NewSessionWithChallenge(cfg *config.Config, tier string) *Session {
-	return &Session{
-		config: cfg,
-		mode:   "challenge",
-		tier:   tier,
-	}
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode: "challenge",
+		Tier: tier,
+	})
 }
 
 func NewSessionWithQuotes(cfg *config.Config, quoteList []Quote) *Session {
-	if len(quoteList) == 0 {
-		return &Session{
-			config: cfg,
-			mode:   "quote",
-			text:   config.DefaultPracticeText,
-			author: "Unknown",
-		}
-	}
-
-	if len(quoteList) == 1 {
-		return &Session{
-			config: cfg,
-			mode:   "quote",
-			text:   quoteList[0].Text,
-			author: quoteList[0].Author,
-		}
-	}
-
-	var quoteTexts []string
-	for _, q := range quoteList {
-		quoteTexts = append(quoteTexts, q.Text)
-	}
-
-	return &Session{
-		config:     cfg,
-		mode:       "quotes",
-		text:       quoteTexts[0],
-		allChunks:  quoteTexts,
-		chunkIndex: 0,
-		author:     quoteList[0].Author,
-	}
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:      "quotes",
+		QuoteList: quoteList,
+	})
 }
 
 func NewSessionWithChunkLimit(cfg *config.Config, maxChunks int) *Session {
-	var text string
-	isGroupMode := maxChunks > 2
-	pageSize := 3
-	var currentPageChunks int
-	if maxChunks <= 1 || !isGroupMode {
-		text = internal.GenerateWordsDynamic(16, cfg.Language.Default)
-		pageSize = 1
-		currentPageChunks = 1
-	} else {
-		currentPageChunks = min(pageSize, maxChunks)
-		var chunks []string
-		for i := 0; i < currentPageChunks; i++ {
-			chunks = append(chunks, internal.GenerateWordsDynamic(17, cfg.Language.Default))
-		}
-		text = strings.Join(chunks, "\n\n")
-	}
-	return &Session{
-		config:            cfg,
-		mode:              "practice",
-		text:              text,
-		maxChunks:         maxChunks,
-		isGroupMode:       isGroupMode,
-		pageSize:          pageSize,
-		currentPageChunks: currentPageChunks,
-	}
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:      "practice",
+		MaxChunks: maxChunks,
+	})
 }
 
 func NewSessionWithCodeSnippet(cfg *config.Config, mode string) *Session {
@@ -343,44 +393,54 @@ func NewSessionWithCodeSnippet(cfg *config.Config, mode string) *Session {
 		language = "typescript"
 	}
 
-	// Generate code snippet
-	text := internal.GenerateCodeSnippet(language)
-
-	return &Session{
-		config: cfg,
-		mode:   mode,
-		text:   text,
-	}
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:     "code",
+		Language: language,
+	})
 }
 
 func NewSessionWithCodeSnippets(cfg *config.Config, language string, count int) *Session {
 	if count <= 0 {
 		count = 1
 	}
-	if count > 10 {
-		count = 10
+	if count > MaxQuoteCount {
+		count = MaxQuoteCount
 	}
 
-	// Generate multiple code snippets
-	text := internal.GenerateCodeSnippets(count, language)
-
-	return &Session{
-		config: cfg,
-		mode:   language + "-code",
-		text:   text,
-	}
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:      "code",
+		Language:  language,
+		CodeCount: count,
+	})
 }
 
-func NewSessionWithCodeSnippetTimed(cfg *config.Config, language string, seconds int) *Session {
-	text := internal.GenerateCodeSnippet(language)
-
-	return &Session{
-		config:    cfg,
-		mode:      language + "-code-timed",
-		text:      text,
-		timeLimit: time.Duration(seconds) * time.Second,
+func NewSessionWithCodeSnippetsTimed(cfg *config.Config, language string, count int, seconds int) *Session {
+	if count <= 0 {
+		count = 1
 	}
+	if count > MaxQuoteCount {
+		count = MaxQuoteCount
+	}
+
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:      "code",
+		Language:  language,
+		CodeCount: count,
+		TimeLimit: time.Duration(seconds) * time.Second,
+	})
 }
+
+func NewSessionTimed(cfg *config.Config, mode string, text string, allChunks []string, chunkIndex int, seconds int) *Session {
+	return NewSessionWithOptions(cfg, SessionConfig{
+		Mode:       mode,
+		Text:       text,
+		AllChunks:  allChunks,
+		ChunkIndex: chunkIndex,
+		TimeLimit:  time.Duration(seconds) * time.Second,
+	})
+}
+
+
 
 func loadTextFromFile(file string) (string, error) {
 	data, err := os.ReadFile(file)
@@ -425,7 +485,7 @@ func splitTextIntoParagraphs(text string) []string {
 	return result
 }
 
-func loadParagraphs(file string) []string {
+func LoadParagraphs(file string) []string {
 	text, err := loadTextFromFile(file)
 	if err != nil {
 		text = config.DefaultPracticeText
@@ -433,7 +493,7 @@ func loadParagraphs(file string) []string {
 	return splitTextIntoParagraphs(text)
 }
 
-func getParagraphAtStart(paragraphs []string, start int) string {
+func GetParagraphAtStart(paragraphs []string, start int) string {
 	if len(paragraphs) == 0 {
 		return config.DefaultPracticeText
 	}
@@ -445,6 +505,14 @@ func getParagraphAtStart(paragraphs []string, start int) string {
 		startIndex = len(paragraphs) - 1
 	}
 	return paragraphs[startIndex]
+}
+
+func loadParagraphs(file string) []string {
+	return LoadParagraphs(file)
+}
+
+func getParagraphAtStart(paragraphs []string, start int) string {
+	return GetParagraphAtStart(paragraphs, start)
 }
 
 func min(a, b int) int {
@@ -590,206 +658,103 @@ func (s *Session) HandleInput(key tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	if (s.mode == "timed" || s.mode == "words" || (s.mode == "practice" && s.maxChunks == 0)) && s.position >= len(s.text) {
+	// Update duration for smooth stats updates
+	if s.running {
+		s.duration = time.Since(s.startTime)
+	}
+
+	// Check for completion conditions
+	if s.position >= len(s.text) {
+		if s.mode == "practice" && s.maxChunks > 0 {
+			return s.handlePracticeCompletion()
+		} else if s.mode == "custom" || s.mode == "quotes" {
+			return s.handleChunkCompletion()
+		} else if s.mode == "timed" || s.mode == "words" || (s.mode == "practice" && s.maxChunks == 0) {
+			s.handleContinuousCompletion()
+		} else {
+			return s.handleDefaultCompletion()
+		}
+	}
+
+	return nil
+}
+
+// handleContinuousCompletion handles completion for modes that continue indefinitely
+func (s *Session) handleContinuousCompletion() {
+	s.totalChars += len(s.userInput)
+	s.totalMistakes += s.mistakes
+
+	s.text = internal.GenerateWordsDynamic(DefaultWordCount, s.config.Language.Default)
+	s.invalidateLineCache()
+	s.position = 0
+	s.userInput = ""
+	s.mistakes = 0
+	s.layoutDirty = true
+}
+
+// handlePracticeCompletion handles completion for practice mode with chunk limits
+func (s *Session) handlePracticeCompletion() tea.Cmd {
+	if s.isGroupMode {
+		s.totalChars += len(s.userInput)
+		s.totalMistakes += s.mistakes
+		s.totalChunks += s.currentPageChunks
+
+		if s.totalChunks >= s.maxChunks {
+			return s.completeSession()
+		} else {
+			s.currentPageChunks = min(s.pageSize, s.maxChunks-s.totalChunks)
+			var chunks []string
+			for i := 0; i < s.currentPageChunks; i++ {
+				chunks = append(chunks, internal.GenerateWordsDynamic(DefaultWordCount, s.config.Language.Default))
+			}
+			s.text = strings.Join(chunks, "\n\n")
+			s.position = 0
+			s.userInput = ""
+			s.mistakes = 0
+			s.layoutDirty = true
+		}
+	} else {
+		s.totalChunks++
 		s.totalChars += len(s.userInput)
 		s.totalMistakes += s.mistakes
 
-		s.text = internal.GenerateWordsDynamic(10, s.config.Language.Default)
+		if s.totalChunks >= s.maxChunks {
+			return s.completeSession()
+		} else {
+			s.text = internal.GenerateWordsDynamic(DefaultWordCount, s.config.Language.Default)
+			s.position = 0
+			s.userInput = ""
+			s.mistakes = 0
+			s.layoutDirty = true
+		}
+	}
+	return nil
+}
+
+// handleChunkCompletion handles completion for custom and quotes modes
+func (s *Session) handleChunkCompletion() tea.Cmd {
+	s.chunkIndex++
+	s.totalChars += len(s.userInput)
+	s.totalMistakes += s.mistakes
+
+	if s.chunkIndex >= len(s.allChunks) {
+		return s.completeSession()
+	} else {
+		s.text = s.allChunks[s.chunkIndex]
+		s.invalidateLineCache()
 		s.position = 0
 		s.userInput = ""
 		s.mistakes = 0
 		s.layoutDirty = true
 	}
-
-	if s.mode == "practice" && s.maxChunks > 0 && s.position >= len(s.text) {
-		if s.isGroupMode {
-			s.totalChars += len(s.userInput)
-			s.totalMistakes += s.mistakes
-			s.totalChunks += s.currentPageChunks
-
-			if s.totalChunks >= s.maxChunks {
-				s.completed = true
-				s.running = false
-				s.duration = time.Since(s.startTime)
-
-				record := &SessionRecord{
-					Mode:              s.mode,
-					Tier:              s.tier,
-					TextLength:        len(s.text),
-					DurationMs:        s.duration.Milliseconds(),
-					WPM:               s.calculateWPM(),
-					CPM:               s.calculateCPM(),
-					Accuracy:          s.calculateAccuracy(),
-					Mistakes:          s.totalMistakes,
-					QuoteAuthor:       s.author,
-					NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
-					AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
-					CorrectedErrors:   s.GetCorrectedErrors(),
-					UncorrectedErrors: s.GetUncorrectedErrors(),
-					BackspaceCount:    s.GetBackspaceCount(),
-					AvgWordLength:     s.GetAvgWordLength(),
-				}
-				SaveSessionRecord(s.config, record)
-				s.mistakes = 0
-
-				return func() tea.Msg { return SessionCompleteMsg{} }
-			} else {
-				s.currentPageChunks = min(s.pageSize, s.maxChunks-s.totalChunks)
-				var chunks []string
-				for i := 0; i < s.currentPageChunks; i++ {
-					chunks = append(chunks, internal.GenerateWordsDynamic(10, s.config.Language.Default))
-				}
-				s.text = strings.Join(chunks, "\n\n")
-				s.position = 0
-				s.userInput = ""
-				s.mistakes = 0
-				s.layoutDirty = true
-			}
-			} else {
-				s.totalChunks++
-				s.totalChars += len(s.userInput)
-				s.totalMistakes += s.mistakes
-
-				if s.totalChunks >= s.maxChunks {
-					s.completed = true
-					s.running = false
-					s.duration = time.Since(s.startTime)
-
-					record := &SessionRecord{
-						Mode:        s.mode,
-						Tier:        s.tier,
-						TextLength:  len(s.text),
-						DurationMs:  s.duration.Milliseconds(),
-						WPM:         s.calculateWPM(),
-						CPM:         s.calculateCPM(),
-						Accuracy:    s.calculateAccuracy(),
-						Mistakes:    s.totalMistakes,
-						QuoteAuthor: s.author,
-					}
-					SaveSessionRecord(s.config, record)
-
-					return func() tea.Msg { return SessionCompleteMsg{} }
-				} else {
-					s.text = internal.GenerateWordsDynamic(10, s.config.Language.Default)
-					s.position = 0
-					s.userInput = ""
-					s.mistakes = 0
-					s.layoutDirty = true
-				}
-			}
-	}
-
-	if s.mode == "custom" && s.position >= len(s.text) {
-		s.chunkIndex++
-		s.totalChars += len(s.userInput)
-		s.totalMistakes += s.mistakes
-
-		if s.chunkIndex >= len(s.allChunks) {
-			s.completed = true
-			s.running = false
-			s.duration = time.Since(s.startTime)
-
-			record := &SessionRecord{
-				Mode:              s.mode,
-				Tier:              s.tier,
-				TextLength:        len(s.text),
-				DurationMs:        s.duration.Milliseconds(),
-				WPM:               s.calculateWPM(),
-				CPM:               s.calculateCPM(),
-				Accuracy:          s.calculateAccuracy(),
-				Mistakes:          s.totalMistakes,
-				QuoteAuthor:       s.author,
-				NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
-				AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
-				CorrectedErrors:   s.GetCorrectedErrors(),
-				UncorrectedErrors: s.GetUncorrectedErrors(),
-				BackspaceCount:    s.GetBackspaceCount(),
-				AvgWordLength:     s.GetAvgWordLength(),
-			}
-			SaveSessionRecord(s.config, record)
-
-			return func() tea.Msg { return SessionCompleteMsg{} }
-		} else {
-			s.text = s.allChunks[s.chunkIndex]
-			s.position = 0
-			s.userInput = ""
-			s.mistakes = 0
-			s.layoutDirty = true
-		}
-	}
-
-	if s.mode == "quotes" && s.position >= len(s.text) {
-		s.chunkIndex++
-		s.totalChars += len(s.userInput)
-		s.totalMistakes += s.mistakes
-
-		if s.chunkIndex >= len(s.allChunks) {
-			s.completed = true
-			s.running = false
-			s.duration = time.Since(s.startTime)
-
-			record := &SessionRecord{
-				Mode:              s.mode,
-				Tier:              s.tier,
-				TextLength:        len(s.text),
-				DurationMs:        s.duration.Milliseconds(),
-				WPM:               s.calculateWPM(),
-				CPM:               s.calculateCPM(),
-				Accuracy:          s.calculateAccuracy(),
-				Mistakes:          s.totalMistakes,
-				QuoteAuthor:       s.author,
-				NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
-				AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
-				CorrectedErrors:   s.GetCorrectedErrors(),
-				UncorrectedErrors: s.GetUncorrectedErrors(),
-				BackspaceCount:    s.GetBackspaceCount(),
-				AvgWordLength:     s.GetAvgWordLength(),
-			}
-			SaveSessionRecord(s.config, record)
-
-			return func() tea.Msg { return SessionCompleteMsg{} }
-		} else {
-			s.text = s.allChunks[s.chunkIndex]
-			s.position = 0
-			s.userInput = ""
-			s.mistakes = 0
-			s.layoutDirty = true
-		}
-	}
-
-	if s.mode != "timed" && s.mode != "words" && s.mode != "custom" && s.mode != "quotes" && s.position >= len(s.text) {
-		s.completed = true
-		s.running = false
-		s.duration = time.Since(s.startTime)
-
-		s.totalChars += len(s.userInput)
-		s.totalMistakes += s.mistakes
-
-		if s.mode != "challenge" {
-			record := &SessionRecord{
-				Mode:              s.mode,
-				Tier:              s.tier,
-				TextLength:        len(s.text),
-				DurationMs:        s.duration.Milliseconds(),
-				WPM:               s.calculateWPM(),
-				CPM:               s.calculateCPM(),
-				Accuracy:          s.calculateAccuracy(),
-				Mistakes:          s.totalMistakes,
-				QuoteAuthor:       s.author,
-				NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
-				AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
-				CorrectedErrors:   s.GetCorrectedErrors(),
-				UncorrectedErrors: s.GetUncorrectedErrors(),
-				BackspaceCount:    s.GetBackspaceCount(),
-				AvgWordLength:     s.GetAvgWordLength(),
-			}
-			SaveSessionRecord(s.config, record)
-		}
-
-		return func() tea.Msg { return SessionCompleteMsg{} }
-	}
-
 	return nil
+}
+
+// handleDefaultCompletion handles completion for all other modes
+func (s *Session) handleDefaultCompletion() tea.Cmd {
+	s.totalChars += len(s.userInput)
+	s.totalMistakes += s.mistakes
+	return s.completeSession()
 }
 
 func (s *Session) completeSession() tea.Cmd {
@@ -797,24 +762,7 @@ func (s *Session) completeSession() tea.Cmd {
 	s.running = false
 	s.duration = time.Since(s.startTime)
 	if s.mode != "challenge" {
-		record := &SessionRecord{
-			Mode:              s.mode,
-			Tier:              s.tier,
-			TextLength:        len(s.text),
-			DurationMs:        s.duration.Milliseconds(),
-			WPM:               s.calculateWPM(),
-			CPM:               s.calculateCPM(),
-			Accuracy:          s.calculateAccuracy(),
-			Mistakes:          s.totalMistakes,
-			QuoteAuthor:       s.author,
-			NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
-			AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
-			CorrectedErrors:   s.GetCorrectedErrors(),
-			UncorrectedErrors: s.GetUncorrectedErrors(),
-			BackspaceCount:    s.GetBackspaceCount(),
-			AvgWordLength:     s.GetAvgWordLength(),
-		}
-		SaveSessionRecord(s.config, record)
+		s.saveRecord(s.totalMistakes)
 	}
 	s.mistakes = 0
 	return func() tea.Msg { return SessionCompleteMsg{} }
@@ -836,35 +784,21 @@ func (s *Session) UpdateTimer() tea.Cmd {
 				mistakes = s.totalMistakes + s.mistakes
 			}
 
-			record := &SessionRecord{
-				Mode:              s.mode,
-				Tier:              s.tier,
-				TextLength:        len(s.text),
-				DurationMs:        s.duration.Milliseconds(),
-				WPM:               s.calculateWPM(),
-				CPM:               s.calculateCPM(),
-				Accuracy:          s.calculateAccuracy(),
-				Mistakes:          mistakes,
-				QuoteAuthor:       s.author,
-				NetWPM:            CalculateNetWPM(s.totalChars+len(s.userInput), s.GetUncorrectedErrors(), s.duration),
-				AdjustedWPM:       CalculateAdjustedWPM(s.GetCorrectChars(), s.GetAvgWordLength(), s.duration),
-				CorrectedErrors:   s.GetCorrectedErrors(),
-				UncorrectedErrors: s.GetUncorrectedErrors(),
-				BackspaceCount:    s.GetBackspaceCount(),
-				AvgWordLength:     s.GetAvgWordLength(),
-			}
-			SaveSessionRecord(s.config, record)
+			s.saveRecord(mistakes)
 			s.mistakes = 0
 
 			return func() tea.Msg { return SessionCompleteMsg{} }
 		}
+
+
+
 		return s.tickTimer()
 	}
 	return nil
 }
 
 func (s *Session) tickTimer() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 		return TimerTickMsg{}
 	})
 }
@@ -930,8 +864,8 @@ func (s *Session) renderStatus(width int) string {
 			timer = elapsed.Truncate(time.Second).String()
 		}
 	}
-	wpm := s.calculateWPM()
-	accuracy := s.calculateAccuracy()
+	wpm := s.CalculateWPM()
+	accuracy := s.CalculateAccuracy()
 
 	mistakes := s.mistakes
 	if s.mode == "practice" && s.maxChunks > 0 {
@@ -1008,11 +942,17 @@ func (s *Session) renderTextContent() string {
 		return s.renderCodeContent()
 	}
 
+	// Optimized rendering: only render a window around current position for performance
+	windowSize := RenderWindowSize // characters before and after current position
+	start := max(0, s.position-windowSize)
+	end := min(len(s.text), s.position+windowSize)
+
 	// Original word-based rendering for non-code modes
 	wordStart, wordEnd := s.findCurrentWordBoundaries()
 
 	var rendered strings.Builder
-	for i, char := range s.text {
+	for i := start; i < end; i++ {
+		char := rune(s.text[i])
 		style := lipgloss.NewStyle().Background(lipgloss.Color(s.config.Theme.Colors.Background))
 		if i < s.position {
 			if i < len(s.userInput) && rune(s.userInput[i]) == char {
@@ -1042,32 +982,20 @@ func (s *Session) renderTextContent() string {
 }
 
 func (s *Session) renderCodeContent() string {
-	lines := strings.Split(s.text, "\n")
+	lines := s.getCachedLines()
 
-	// Determine language from mode or use default
-	language := "go" // default
-	if strings.Contains(s.mode, "python") {
-		language = "python"
-	} else if strings.Contains(s.mode, "javascript") {
-		language = "javascript"
-	} else if strings.Contains(s.mode, "java") {
-		language = "java"
-	} else if strings.Contains(s.mode, "cpp") {
-		language = "cpp"
-	} else if strings.Contains(s.mode, "rust") {
-		language = "rust"
-	} else if strings.Contains(s.mode, "typescript") {
-		language = "typescript"
+	// Calculate line number width - use absolute line numbers for custom code
+	var maxLineNum int
+	var lineNumOffset int
+	if s.chunkIndex >= 0 && strings.Contains(s.mode, "code") && s.allChunks != nil {
+		// For custom code with start parameter, show absolute line numbers
+		lineNumOffset = s.chunkIndex + 1 // chunkIndex is 0-based paragraph index, +1 for 1-based line numbers
+		maxLineNum = s.chunkIndex + len(lines)
+	} else {
+		// Default behavior for generated code
+		lineNumOffset = 1
+		maxLineNum = len(lines)
 	}
-
-	// Apply syntax highlighting
-	highlighter := syntax.NewHighlighter(s.config)
-	highlightedText := highlighter.Highlight(s.text, language)
-
-	highlightedLines := strings.Split(highlightedText, "\n")
-
-	// Calculate line number width
-	maxLineNum := len(lines)
 	lineNumWidth := len(strconv.Itoa(maxLineNum))
 
 	// Auto-scroll to keep current position visible
@@ -1095,41 +1023,38 @@ func (s *Session) renderCodeContent() string {
 		// Add line number if enabled
 		showLineNumbers := true // This should come from config
 		if showLineNumbers {
-			lineNum := strconv.Itoa(lineIdx + 1)
+			lineNum := strconv.Itoa(lineIdx + lineNumOffset)
 			lineNumPadded := fmt.Sprintf("%*s", lineNumWidth, lineNum)
 			lineStr.WriteString(lipgloss.NewStyle().
 				Foreground(lipgloss.Color(s.config.Theme.Colors.TextSecondary)).
 				Render(lineNumPadded + " "))
 		}
 
-		// Add the highlighted line content with character-level coloring
-		if lineIdx < len(highlightedLines) {
-			// Apply character-level typing colors
-			for charIdx, char := range line {
-				currentGlobalPos := globalPos + charIdx
+		// Apply character-level typing colors
+		for charIdx, char := range line {
+			currentGlobalPos := globalPos + charIdx
 
-				style := lipgloss.NewStyle().Background(lipgloss.Color(s.config.Theme.Colors.Background))
+			style := lipgloss.NewStyle().Background(lipgloss.Color(s.config.Theme.Colors.Background))
 
-				if currentGlobalPos < s.position {
-					if currentGlobalPos < len(s.userInput) && rune(s.userInput[currentGlobalPos]) == char {
-						style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Correct))
-					} else {
-						style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Incorrect))
-					}
-				} else if currentGlobalPos == s.position {
-					style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.WordHighlight)).Faint(true)
-					if s.config.Theme.Styles.UnderlineCurrent {
-						style = style.Underline(true)
-					}
+			if currentGlobalPos < s.position {
+				if currentGlobalPos < len(s.userInput) && rune(s.userInput[currentGlobalPos]) == char {
+					style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Correct))
 				} else {
-					style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Pending))
-					if s.config.Theme.Styles.DimPending {
-						style = style.Faint(true)
-					}
+					style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Incorrect))
 				}
-
-				lineStr.WriteString(style.Render(string(char)))
+			} else if currentGlobalPos == s.position {
+				style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.WordHighlight)).Faint(true)
+				if s.config.Theme.Styles.UnderlineCurrent {
+					style = style.Underline(true)
+				}
+			} else {
+				style = style.Foreground(lipgloss.Color(s.config.Theme.Colors.Pending))
+				if s.config.Theme.Styles.DimPending {
+					style = style.Faint(true)
+				}
 			}
+
+			lineStr.WriteString(style.Render(string(char)))
 		}
 
 		renderedLines = append(renderedLines, lineStr.String())
@@ -1157,23 +1082,32 @@ func (s *Session) autoScrollToCurrentPosition(lines []string) {
 		charCount += lineLen
 	}
 
-	// Ensure current line is visible
+	// Calculate target scroll position to keep current line visible
+	var targetScroll int
 	if currentLine < s.scrollOffset {
-		s.scrollOffset = currentLine
+		targetScroll = currentLine
 	} else if currentLine >= s.scrollOffset+s.visibleLines {
-		s.scrollOffset = currentLine - s.visibleLines + 1
+		targetScroll = currentLine - s.visibleLines + 1
+	} else {
+		return // Already visible, no need to scroll
 	}
 
-	// Ensure scroll offset is within bounds
+	// Ensure target scroll offset is within bounds
 	maxScroll := len(lines) - s.visibleLines
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-	if s.scrollOffset > maxScroll {
-		s.scrollOffset = maxScroll
+	if targetScroll > maxScroll {
+		targetScroll = maxScroll
 	}
-	if s.scrollOffset < 0 {
-		s.scrollOffset = 0
+	if targetScroll < 0 {
+		targetScroll = 0
+	}
+
+	// Set scroll position directly (no smooth animation)
+	if targetScroll != s.scrollOffset {
+		s.scrollOffset = targetScroll
+		s.layoutDirty = true
 	}
 }
 
@@ -1181,9 +1115,9 @@ func (s *Session) autoScrollToCurrentPosition(lines []string) {
 func (s *Session) ScrollUp() {
 	if s.scrollOffset > 0 {
 		// Smooth scrolling - scroll by smaller increments
-		scrollAmount := 1
+		scrollAmount := MinScrollIncrement
 		if s.visibleLines > 10 {
-			scrollAmount = 1 // Keep it to 1 line for better control
+			scrollAmount = MinScrollIncrement // Keep it to 1 line for better control
 		}
 		s.scrollOffset -= scrollAmount
 		if s.scrollOffset < 0 {
@@ -1195,16 +1129,16 @@ func (s *Session) ScrollUp() {
 
 // ScrollDown scrolls down smoothly
 func (s *Session) ScrollDown() {
-	lines := strings.Split(s.text, "\n")
+	lines := s.getCachedLines()
 	maxScroll := len(lines) - s.visibleLines
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
 	if s.scrollOffset < maxScroll {
 		// Smooth scrolling - scroll by smaller increments
-		scrollAmount := 1
+		scrollAmount := MinScrollIncrement
 		if s.visibleLines > 10 {
-			scrollAmount = 1 // Keep it to 1 line for better control
+			scrollAmount = MinScrollIncrement // Keep it to 1 line for better control
 		}
 		s.scrollOffset += scrollAmount
 		if s.scrollOffset > maxScroll {
@@ -1216,9 +1150,9 @@ func (s *Session) ScrollDown() {
 
 // ScrollUpPage scrolls up by one page
 func (s *Session) ScrollUpPage() {
-	scrollAmount := s.visibleLines - 1 // Keep one line of overlap
-	if scrollAmount < 1 {
-		scrollAmount = 1
+	scrollAmount := s.visibleLines - ScrollOverlap // Keep one line of overlap
+	if scrollAmount < MinScrollIncrement {
+		scrollAmount = MinScrollIncrement
 	}
 	s.scrollOffset -= scrollAmount
 	if s.scrollOffset < 0 {
@@ -1229,10 +1163,10 @@ func (s *Session) ScrollUpPage() {
 
 // ScrollDownPage scrolls down by one page
 func (s *Session) ScrollDownPage() {
-	lines := strings.Split(s.text, "\n")
-	scrollAmount := s.visibleLines - 1 // Keep one line of overlap
-	if scrollAmount < 1 {
-		scrollAmount = 1
+	lines := s.getCachedLines()
+	scrollAmount := s.visibleLines - ScrollOverlap // Keep one line of overlap
+	if scrollAmount < MinScrollIncrement {
+		scrollAmount = MinScrollIncrement
 	}
 	maxScroll := len(lines) - s.visibleLines
 	if maxScroll < 0 {
@@ -1266,7 +1200,13 @@ func (s *Session) renderText(width, height int) string {
 	// Update visible lines for scrolling (only for code mode)
 	isCodeMode := strings.Contains(s.mode, "code") || s.mode == "snippet"
 	if isCodeMode {
-		s.visibleLines = textHeight
+		// Limit visible lines to 6 for better UX with long code files
+		maxVisibleLines := 6
+		if textHeight < maxVisibleLines {
+			s.visibleLines = textHeight
+		} else {
+			s.visibleLines = maxVisibleLines
+		}
 	}
 
 	dynamicWidth := s.calculateDynamicWidth(content, width)
@@ -1366,17 +1306,7 @@ func (s *Session) CalculateAccuracy() float64 {
 	return float64(totalChars-totalMistakes) / float64(totalChars) * 100
 }
 
-func (s *Session) calculateWPM() float64 {
-	return s.CalculateWPM()
-}
 
-func (s *Session) calculateCPM() float64 {
-	return s.CalculateCPM()
-}
-
-func (s *Session) calculateAccuracy() float64 {
-	return s.CalculateAccuracy()
-}
 
 func (s *Session) IsLayoutDirty() bool {
 	return s.layoutDirty
@@ -1403,8 +1333,34 @@ func (s *Session) GetText() string {
 }
 
 func (s *Session) SetText(text string) {
-	s.text = text
+	if s.text != text {
+		s.text = text
+		s.invalidateLineCache()
+	}
 	s.ResetForNewText()
+}
+
+// getCachedLines returns cached lines, computing them if necessary
+func (s *Session) getCachedLines() []string {
+	currentHash := s.computeTextHash()
+	if s.textHash != currentHash || s.cachedLines == nil {
+		s.cachedLines = strings.Split(s.text, "\n")
+		s.textHash = currentHash
+	}
+	return s.cachedLines
+}
+
+// computeTextHash computes a simple hash of the text for cache invalidation
+func (s *Session) computeTextHash() uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s.text))
+	return h.Sum32()
+}
+
+// invalidateLineCache clears the cached lines
+func (s *Session) invalidateLineCache() {
+	s.cachedLines = nil
+	s.textHash = 0
 }
 
 func (s *Session) GetMistakes() int {
@@ -1454,9 +1410,9 @@ type StatsSnapshot struct {
 
 func (s *Session) GetStatsSnapshot() StatsSnapshot {
 	return StatsSnapshot{
-		WPM:      s.calculateWPM(),
-		CPM:      s.calculateCPM(),
-		Accuracy: s.calculateAccuracy(),
+		WPM:      s.CalculateWPM(),
+		CPM:      s.CalculateCPM(),
+		Accuracy: s.CalculateAccuracy(),
 		Mistakes: s.mistakes,
 		Duration: s.duration,
 		Progress: s.calculateProgress(),

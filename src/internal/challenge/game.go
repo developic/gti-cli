@@ -36,18 +36,22 @@ type Level struct {
 	MinWords    int
 }
 
-type GameState struct {
-	Levels         []Level
-	CurrentLevel   int
-	Phase          string
-	ChunkIndex     int
+type GameTiming struct {
 	StartTime      time.Time
 	LevelStartTime time.Time
 	TimeLeft       int
-	WordsTyped     int
-	Mistakes       int
-	TotalChars     int
-	BossResults    []BossResult
+}
+
+type GameState struct {
+	Levels      []Level
+	CurrentLevel int
+	Phase       string
+	ChunkIndex  int
+	GameTiming
+	WordsTyped  int
+	Mistakes    int
+	TotalChars  int
+	BossResults []BossResult
 }
 
 type BossResult struct {
@@ -71,14 +75,16 @@ func NewGameModel(cfg *config.Config, levels []Level) GameModel {
 	now := time.Now()
 
 	state := &GameState{
-		Levels:         levels,
-		CurrentLevel:   startingLevel,
-		Phase:          "normal",
-		ChunkIndex:     0,
-		TimeLeft:       levels[startingLevel].Time,
-		StartTime:      now,
-		LevelStartTime: now,
-		BossResults:    []BossResult{},
+		Levels:      levels,
+		CurrentLevel: startingLevel,
+		Phase:       "normal",
+		ChunkIndex:  0,
+		GameTiming: GameTiming{
+			TimeLeft:       levels[startingLevel].Time,
+			StartTime:      now,
+			LevelStartTime: now,
+		},
+		BossResults: []BossResult{},
 	}
 
 	sess := session.NewSessionWithChallenge(cfg, fmt.Sprintf("lv%d", state.CurrentLevel+1))
@@ -214,23 +220,7 @@ func (m GameModel) viewHelp() string {
 		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
 		Render("Help overlay - Press ESC to close\n\nShortcuts:\nCtrl+Q: Quit confirmation\nCtrl+C: Force quit\nEsc: Restart level\nCtrl+H: Help\nBackspace: Delete\nLeft/Right: Navigate segments\n\nChallenge Mode:\nComplete levels with increasing difficulty\nEnter: Continue to next level\nR: Retry failed level")
 
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
-		BorderBackground(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Padding(1, 2).
-		Align(lipgloss.Center).
-		Render(helpText)
-
-	placedBox := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.config.Theme.Colors.Background)))
-
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Render(placedBox)
+	return m.renderDialogBox(helpText, 2, 1, m.config.Theme.Colors.TextPrimary, true)
 }
 
 func (m GameModel) viewQuit() string {
@@ -241,23 +231,7 @@ func (m GameModel) viewQuit() string {
 
 "Quit?" (y/n)`)
 
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.config.Theme.Colors.TextPrimary)).
-		BorderBackground(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Padding(2, 4).
-		Align(lipgloss.Center).
-		Render(quitText)
-
-	placedBox := lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
-		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.config.Theme.Colors.Background)))
-
-	return lipgloss.NewStyle().
-		Width(m.width).
-		Height(m.height).
-		Background(lipgloss.Color(m.config.Theme.Colors.Background)).
-		Render(placedBox)
+	return m.renderDialogBox(quitText, 4, 2, m.config.Theme.Colors.TextPrimary, true)
 }
 
 func (m *GameModel) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -326,24 +300,14 @@ func (m *GameModel) handleSessionComplete() (tea.Model, tea.Cmd) {
 			}
 		}
 
-		result := BossResult{
-			Name:      bossName,
-			WPM:       m.calculateWPM(),
-			Accuracy:  m.calculateAccuracy(),
-			Completed: true,
-		}
+		result := m.createBossResult(bossName, true)
 		m.state.BossResults = append(m.state.BossResults, result)
 		m.state.Phase = "normal"
 		m.state.ChunkIndex++
 		m.generateNextChunk()
 	} else if level.BossRound != nil {
 		if m.checkLevelRequirements(level) {
-			result := BossResult{
-				Name:      level.BossRound.Name,
-				WPM:       m.calculateWPM(),
-				Accuracy:  m.calculateAccuracy(),
-				Completed: true,
-			}
+			result := m.createBossResult(level.BossRound.Name, true)
 			m.state.BossResults = append(m.state.BossResults, result)
 			m.state.Phase = "complete"
 		} else {
@@ -364,12 +328,7 @@ func (m *GameModel) handleTick() (tea.Model, tea.Cmd) {
 	if m.state.TimeLeft <= 0 {
 		level := m.state.Levels[m.state.CurrentLevel]
 		if level.BossRound != nil {
-			result := BossResult{
-				Name:      level.BossRound.Name,
-				WPM:       m.calculateWPM(),
-				Accuracy:  m.calculateAccuracy(),
-				Completed: false,
-			}
+			result := m.createBossResult(level.BossRound.Name, false)
 			m.state.BossResults = append(m.state.BossResults, result)
 			m.state.Phase = "complete"
 		} else {
@@ -438,6 +397,15 @@ func (m GameModel) countCompletedBosses() int {
 	return count
 }
 
+func (m GameModel) createBossResult(name string, completed bool) BossResult {
+	return BossResult{
+		Name:      name,
+		WPM:       m.calculateWPM(),
+		Accuracy:  m.calculateAccuracy(),
+		Completed: completed,
+	}
+}
+
 func (m *GameModel) startHiddenBossRound(boss BossRound) {
 	bossText := internal.GenerateWordsDynamic(boss.Words, m.config.Language.Default)
 	m.sess.SetText(bossText)
@@ -471,15 +439,28 @@ func (m GameModel) checkLevelRequirements(level Level) bool {
 		m.state.WordsTyped >= level.MinWords
 }
 
-func (m GameModel) renderLevelDialog(content string, borderColor string) string {
-	box := lipgloss.NewStyle().
+// renderDialogBox creates a unified dialog box with configurable styling
+func (m GameModel) renderDialogBox(content string, paddingX, paddingY int, borderColor string, includeBackground bool) string {
+	boxStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(1, 2).
-		Align(lipgloss.Center).
-		Render(content)
+		Padding(paddingY, paddingX).
+		Align(lipgloss.Center)
 
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box)
+	if includeBackground {
+		boxStyle = boxStyle.
+			BorderBackground(lipgloss.Color(m.config.Theme.Colors.Background)).
+			Background(lipgloss.Color(m.config.Theme.Colors.Background))
+	}
+
+	box := boxStyle.Render(content)
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, box,
+		lipgloss.WithWhitespaceBackground(lipgloss.Color(m.config.Theme.Colors.Background)))
+}
+
+func (m GameModel) renderLevelDialog(content string, borderColor string) string {
+	return m.renderDialogBox(content, 2, 1, borderColor, false)
 }
 
 func (m GameModel) getLevelRequirements(level Level) LevelRequirements {

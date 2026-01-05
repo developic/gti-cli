@@ -1,5 +1,7 @@
 package challenge
 
+import "math"
+
 type ChallengeLevel struct {
 	Name        string  `toml:"name"`
 	TimeSeconds int     `toml:"time_seconds"`
@@ -10,111 +12,173 @@ type ChallengeLevel struct {
 	IsBoss      bool    `toml:"is_boss"`
 }
 
-func GetBuiltInLevels() []ChallengeLevel {
-	return []ChallengeLevel{
-		{Name: "Level 1 - Easy Warmup", TimeSeconds: 30, MinAccuracy: 92.0, MaxMistakes: 98, MinChars: 10, MinWords: 2, IsBoss: false},
-		{Name: "Level 2 - Easy Warmup", TimeSeconds: 30, MinAccuracy: 92.2, MaxMistakes: 96, MinChars: 20, MinWords: 4, IsBoss: false},
-		{Name: "Level 3 - Easy Warmup", TimeSeconds: 30, MinAccuracy: 92.4, MaxMistakes: 94, MinChars: 30, MinWords: 6, IsBoss: false},
-		{Name: "Level 4 - Easy Warmup", TimeSeconds: 30, MinAccuracy: 92.6, MaxMistakes: 92, MinChars: 40, MinWords: 8, IsBoss: false},
-		{Name: "Level 5 - Easy Warmup", TimeSeconds: 30, MinAccuracy: 92.8, MaxMistakes: 90, MinChars: 40, MinWords: 10, IsBoss: false},
-		{Name: "Level 6 - Easy Warmup", TimeSeconds: 31, MinAccuracy: 93.0, MaxMistakes: 88, MinChars: 60, MinWords: 12, IsBoss: false},
-		{Name: "Level 7 - Easy Warmup", TimeSeconds: 31, MinAccuracy: 93.2, MaxMistakes: 86, MinChars: 70, MinWords: 14, IsBoss: false},
-		{Name: "Level 8 - Easy Warmup", TimeSeconds: 31, MinAccuracy: 93.4, MaxMistakes: 84, MinChars: 80, MinWords: 16, IsBoss: false},
-		{Name: "Level 9 - Easy Warmup", TimeSeconds: 31, MinAccuracy: 93.6, MaxMistakes: 82, MinChars: 90, MinWords: 18, IsBoss: false},
-		{Name: "Easy Boss 2 - Speed Challenge", TimeSeconds: 31, MinAccuracy: 93.8, MaxMistakes: 80, MinChars: 100, MinWords: 20, IsBoss: true},
-		{Name: "Level 11 - Easy Warmup", TimeSeconds: 32, MinAccuracy: 94.0, MaxMistakes: 78, MinChars: 110, MinWords: 22, IsBoss: false},
-		{Name: "Level 12 - Easy Warmup", TimeSeconds: 32, MinAccuracy: 94.2, MaxMistakes: 76, MinChars: 120, MinWords: 24, IsBoss: false},
-		{Name: "Level 13 - Easy Warmup", TimeSeconds: 32, MinAccuracy: 94.4, MaxMistakes: 74, MinChars: 130, MinWords: 26, IsBoss: false},
-		{Name: "Level 14 - Easy Warmup", TimeSeconds: 32, MinAccuracy: 94.6, MaxMistakes: 72, MinChars: 140, MinWords: 28, IsBoss: false},
-		{Name: "Easy Boss 3 - Speed Challenge", TimeSeconds: 32, MinAccuracy: 94.8, MaxMistakes: 70, MinChars: 150, MinWords: 30, IsBoss: true},
-		{Name: "Level 16 - Easy Warmup", TimeSeconds: 33, MinAccuracy: 95.0, MaxMistakes: 68, MinChars: 160, MinWords: 32, IsBoss: false},
-		{Name: "Level 17 - Easy Warmup", TimeSeconds: 33, MinAccuracy: 95.2, MaxMistakes: 66, MinChars: 170, MinWords: 34, IsBoss: false},
-		{Name: "Level 18 - Easy Warmup", TimeSeconds: 33, MinAccuracy: 95.4, MaxMistakes: 64, MinChars: 180, MinWords: 36, IsBoss: false},
-		{Name: "Level 19 - Easy Warmup", TimeSeconds: 33, MinAccuracy: 95.6, MaxMistakes: 62, MinChars: 190, MinWords: 38, IsBoss: false},
-		{Name: "Easy Boss 4 - Speed Challenge", TimeSeconds: 33, MinAccuracy: 95.8, MaxMistakes: 60, MinChars: 200, MinWords: 40, IsBoss: true},
+// Difficulty tiers with meaningful names and descriptions
+type DifficultyTier struct {
+	Name         string
+	Description  string
+	StartLevel   int
+	EndLevel     int
+	BaseAccuracy float64
+	TimeBase     int
+	CharBase     int
+	MistakeBase  int
+}
 
-		{Name: "Level 21 - Medium Challenge", TimeSeconds: 35, MinAccuracy: 95.0, MaxMistakes: 29, MinChars: 215, MinWords: 43, IsBoss: false},
-		{Name: "Level 22 - Medium Challenge", TimeSeconds: 35, MinAccuracy: 95.1, MaxMistakes: 28, MinChars: 230, MinWords: 46, IsBoss: false},
-		{Name: "Level 23 - Medium Challenge", TimeSeconds: 36, MinAccuracy: 95.2, MaxMistakes: 27, MinChars: 245, MinWords: 49, IsBoss: false},
-		{Name: "Level 24 - Medium Challenge", TimeSeconds: 36, MinAccuracy: 95.3, MaxMistakes: 26, MinChars: 260, MinWords: 52, IsBoss: false},
-		{Name: "Medium Boss 1 - Accuracy Master", TimeSeconds: 36, MinAccuracy: 95.4, MaxMistakes: 25, MinChars: 275, MinWords: 55, IsBoss: true},
-		{Name: "Level 26 - Medium Challenge", TimeSeconds: 37, MinAccuracy: 95.5, MaxMistakes: 24, MinChars: 290, MinWords: 58, IsBoss: false},
-		{Name: "Level 27 - Medium Challenge", TimeSeconds: 37, MinAccuracy: 95.6, MaxMistakes: 23, MinChars: 305, MinWords: 61, IsBoss: false},
-		{Name: "Level 28 - Medium Challenge", TimeSeconds: 37, MinAccuracy: 95.7, MaxMistakes: 22, MinChars: 320, MinWords: 64, IsBoss: false},
-		{Name: "Level 29 - Medium Challenge", TimeSeconds: 38, MinAccuracy: 95.8, MaxMistakes: 21, MinChars: 335, MinWords: 67, IsBoss: false},
-		{Name: "Medium Boss 2 - Accuracy Master", TimeSeconds: 38, MinAccuracy: 95.9, MaxMistakes: 20, MinChars: 350, MinWords: 70, IsBoss: true},
-		{Name: "Level 31 - Medium Challenge", TimeSeconds: 38, MinAccuracy: 96.0, MaxMistakes: 19, MinChars: 365, MinWords: 73, IsBoss: false},
-		{Name: "Level 32 - Medium Challenge", TimeSeconds: 39, MinAccuracy: 96.1, MaxMistakes: 18, MinChars: 380, MinWords: 76, IsBoss: false},
-		{Name: "Level 33 - Medium Challenge", TimeSeconds: 39, MinAccuracy: 96.2, MaxMistakes: 17, MinChars: 395, MinWords: 79, IsBoss: false},
-		{Name: "Level 34 - Medium Challenge", TimeSeconds: 39, MinAccuracy: 96.3, MaxMistakes: 16, MinChars: 410, MinWords: 82, IsBoss: false},
-		{Name: "Medium Boss 3 - Accuracy Master", TimeSeconds: 40, MinAccuracy: 96.4, MaxMistakes: 15, MinChars: 425, MinWords: 85, IsBoss: true},
-		{Name: "Level 36 - Medium Challenge", TimeSeconds: 40, MinAccuracy: 96.5, MaxMistakes: 14, MinChars: 440, MinWords: 88, IsBoss: false},
-		{Name: "Level 37 - Medium Challenge", TimeSeconds: 40, MinAccuracy: 96.6, MaxMistakes: 13, MinChars: 455, MinWords: 91, IsBoss: false},
-		{Name: "Level 38 - Medium Challenge", TimeSeconds: 41, MinAccuracy: 96.7, MaxMistakes: 12, MinChars: 470, MinWords: 94, IsBoss: false},
-		{Name: "Level 39 - Medium Challenge", TimeSeconds: 41, MinAccuracy: 96.8, MaxMistakes: 11, MinChars: 485, MinWords: 97, IsBoss: false},
-		{Name: "Medium Boss 4 - Accuracy Master", TimeSeconds: 41, MinAccuracy: 96.9, MaxMistakes: 10, MinChars: 500, MinWords: 100, IsBoss: true},
-		{Name: "Level 41 - Medium Challenge", TimeSeconds: 42, MinAccuracy: 97.0, MaxMistakes: 9, MinChars: 515, MinWords: 103, IsBoss: false},
-		{Name: "Level 42 - Medium Challenge", TimeSeconds: 42, MinAccuracy: 97.1, MaxMistakes: 8, MinChars: 530, MinWords: 106, IsBoss: false},
-		{Name: "Level 43 - Medium Challenge", TimeSeconds: 42, MinAccuracy: 97.2, MaxMistakes: 7, MinChars: 545, MinWords: 109, IsBoss: false},
-		{Name: "Level 44 - Medium Challenge", TimeSeconds: 43, MinAccuracy: 97.3, MaxMistakes: 6, MinChars: 560, MinWords: 112, IsBoss: false},
-		{Name: "Medium Boss 5 - Accuracy Master", TimeSeconds: 43, MinAccuracy: 97.4, MaxMistakes: 5, MinChars: 575, MinWords: 115, IsBoss: true},
-		{Name: "Level 46 - Medium Challenge", TimeSeconds: 43, MinAccuracy: 97.5, MaxMistakes: 4, MinChars: 590, MinWords: 118, IsBoss: false},
-		{Name: "Level 47 - Medium Challenge", TimeSeconds: 44, MinAccuracy: 97.6, MaxMistakes: 3, MinChars: 605, MinWords: 121, IsBoss: false},
-		{Name: "Level 48 - Medium Challenge", TimeSeconds: 44, MinAccuracy: 97.7, MaxMistakes: 2, MinChars: 620, MinWords: 124, IsBoss: false},
-		{Name: "Level 49 - Medium Challenge", TimeSeconds: 44, MinAccuracy: 97.8, MaxMistakes: 1, MinChars: 635, MinWords: 127, IsBoss: false},
-		{Name: "Medium Boss 6 - Accuracy Master", TimeSeconds: 45, MinAccuracy: 97.9, MaxMistakes: 1, MinChars: 650, MinWords: 130, IsBoss: true},
+var difficultyTiers = []DifficultyTier{
+	{
+		Name:         "Beginner",
+		Description:  "Getting Started",
+		StartLevel:   1,
+		EndLevel:     10,
+		BaseAccuracy: 90.0,
+		TimeBase:     30,
+		CharBase:     15,
+		MistakeBase:  100,
+	},
+	{
+		Name:         "Apprentice",
+		Description:  "Building Skills",
+		StartLevel:   11,
+		EndLevel:     25,
+		BaseAccuracy: 92.0,
+		TimeBase:     35,
+		CharBase:     50,
+		MistakeBase:  50,
+	},
+	{
+		Name:         "Intermediate",
+		Description:  "Finding Rhythm",
+		StartLevel:   26,
+		EndLevel:     50,
+		BaseAccuracy: 94.0,
+		TimeBase:     40,
+		CharBase:     100,
+		MistakeBase:  25,
+	},
+	{
+		Name:         "Advanced",
+		Description:  "Precision Work",
+		StartLevel:   51,
+		EndLevel:     75,
+		BaseAccuracy: 96.0,
+		TimeBase:     45,
+		CharBase:     200,
+		MistakeBase:  15,
+	},
+	{
+		Name:         "Expert",
+		Description:  "Master Level",
+		StartLevel:   76,
+		EndLevel:     95,
+		BaseAccuracy: 97.5,
+		TimeBase:     50,
+		CharBase:     300,
+		MistakeBase:  8,
+	},
+	{
+		Name:         "Legendary",
+		Description:  "Typing Legend",
+		StartLevel:   96,
+		EndLevel:     100,
+		BaseAccuracy: 98.5,
+		TimeBase:     60,
+		CharBase:     400,
+		MistakeBase:  3,
+	},
+}
 
-		{Name: "Level 51 - Hard Mastery", TimeSeconds: 45, MinAccuracy: 97.0, MaxMistakes: 29, MinChars: 670, MinWords: 134, IsBoss: false},
-		{Name: "Level 52 - Hard Mastery", TimeSeconds: 45, MinAccuracy: 97.05, MaxMistakes: 28, MinChars: 690, MinWords: 138, IsBoss: false},
-		{Name: "Level 53 - Hard Mastery", TimeSeconds: 46, MinAccuracy: 97.1, MaxMistakes: 27, MinChars: 710, MinWords: 142, IsBoss: false},
-		{Name: "Level 54 - Hard Mastery", TimeSeconds: 46, MinAccuracy: 97.15, MaxMistakes: 26, MinChars: 730, MinWords: 146, IsBoss: false},
-		{Name: "Hard Boss 1 - Ultimate Test", TimeSeconds: 46, MinAccuracy: 97.2, MaxMistakes: 25, MinChars: 750, MinWords: 150, IsBoss: true},
-		{Name: "Level 56 - Hard Mastery", TimeSeconds: 47, MinAccuracy: 97.25, MaxMistakes: 24, MinChars: 770, MinWords: 154, IsBoss: false},
-		{Name: "Level 57 - Hard Mastery", TimeSeconds: 47, MinAccuracy: 97.3, MaxMistakes: 23, MinChars: 790, MinWords: 158, IsBoss: false},
-		{Name: "Level 58 - Hard Mastery", TimeSeconds: 47, MinAccuracy: 97.35, MaxMistakes: 22, MinChars: 810, MinWords: 162, IsBoss: false},
-		{Name: "Level 59 - Hard Mastery", TimeSeconds: 48, MinAccuracy: 97.4, MaxMistakes: 21, MinChars: 830, MinWords: 166, IsBoss: false},
-		{Name: "Hard Boss 2 - Ultimate Test", TimeSeconds: 48, MinAccuracy: 97.45, MaxMistakes: 20, MinChars: 850, MinWords: 170, IsBoss: true},
-		{Name: "Level 61 - Hard Mastery", TimeSeconds: 48, MinAccuracy: 97.5, MaxMistakes: 19, MinChars: 870, MinWords: 174, IsBoss: false},
-		{Name: "Level 62 - Hard Mastery", TimeSeconds: 49, MinAccuracy: 97.55, MaxMistakes: 18, MinChars: 890, MinWords: 178, IsBoss: false},
-		{Name: "Level 63 - Hard Mastery", TimeSeconds: 49, MinAccuracy: 97.6, MaxMistakes: 17, MinChars: 910, MinWords: 182, IsBoss: false},
-		{Name: "Level 64 - Hard Mastery", TimeSeconds: 49, MinAccuracy: 97.65, MaxMistakes: 16, MinChars: 930, MinWords: 186, IsBoss: false},
-		{Name: "Hard Boss 3 - Ultimate Test", TimeSeconds: 50, MinAccuracy: 97.7, MaxMistakes: 15, MinChars: 950, MinWords: 190, IsBoss: true},
-		{Name: "Level 66 - Hard Mastery", TimeSeconds: 50, MinAccuracy: 97.75, MaxMistakes: 14, MinChars: 970, MinWords: 194, IsBoss: false},
-		{Name: "Level 67 - Hard Mastery", TimeSeconds: 50, MinAccuracy: 97.8, MaxMistakes: 13, MinChars: 990, MinWords: 198, IsBoss: false},
-		{Name: "Level 68 - Hard Mastery", TimeSeconds: 51, MinAccuracy: 97.85, MaxMistakes: 12, MinChars: 1010, MinWords: 202, IsBoss: false},
-		{Name: "Level 69 - Hard Mastery", TimeSeconds: 51, MinAccuracy: 97.9, MaxMistakes: 11, MinChars: 1030, MinWords: 206, IsBoss: false},
-		{Name: "Hard Boss 4 - Ultimate Test", TimeSeconds: 51, MinAccuracy: 97.95, MaxMistakes: 10, MinChars: 1050, MinWords: 210, IsBoss: true},
-		{Name: "Level 71 - Hard Mastery", TimeSeconds: 52, MinAccuracy: 98.0, MaxMistakes: 9, MinChars: 1070, MinWords: 214, IsBoss: false},
-		{Name: "Level 72 - Hard Mastery", TimeSeconds: 52, MinAccuracy: 98.05, MaxMistakes: 8, MinChars: 1090, MinWords: 218, IsBoss: false},
-		{Name: "Level 73 - Hard Mastery", TimeSeconds: 52, MinAccuracy: 98.1, MaxMistakes: 7, MinChars: 1110, MinWords: 222, IsBoss: false},
-		{Name: "Level 74 - Hard Mastery", TimeSeconds: 53, MinAccuracy: 98.15, MaxMistakes: 6, MinChars: 1130, MinWords: 226, IsBoss: false},
-		{Name: "Hard Boss 5 - Ultimate Test", TimeSeconds: 53, MinAccuracy: 98.2, MaxMistakes: 5, MinChars: 1150, MinWords: 230, IsBoss: true},
-		{Name: "Level 76 - Hard Mastery", TimeSeconds: 53, MinAccuracy: 98.25, MaxMistakes: 4, MinChars: 1170, MinWords: 234, IsBoss: false},
-		{Name: "Level 77 - Hard Mastery", TimeSeconds: 54, MinAccuracy: 98.3, MaxMistakes: 3, MinChars: 1190, MinWords: 238, IsBoss: false},
-		{Name: "Level 78 - Hard Mastery", TimeSeconds: 54, MinAccuracy: 98.35, MaxMistakes: 2, MinChars: 1210, MinWords: 242, IsBoss: false},
-		{Name: "Level 79 - Hard Mastery", TimeSeconds: 54, MinAccuracy: 98.4, MaxMistakes: 1, MinChars: 1230, MinWords: 246, IsBoss: false},
-		{Name: "Hard Boss 6 - Ultimate Test", TimeSeconds: 55, MinAccuracy: 98.45, MaxMistakes: 1, MinChars: 1250, MinWords: 250, IsBoss: true},
+// Boss level names with variety
+var bossNames = []string{
+	"Speed Demon",
+	"Accuracy Ace",
+	"Time Master",
+	"Word Warrior",
+	"Precision Pro",
+	"Ultimate Test",
+	"Legendary Challenge",
+	"Master's Trial",
+}
 
-		{Name: "Level 81 - Expert Elite", TimeSeconds: 50, MinAccuracy: 98.0, MaxMistakes: 12, MinChars: 1275, MinWords: 255, IsBoss: false},
-		{Name: "Level 82 - Expert Elite", TimeSeconds: 50, MinAccuracy: 98.02, MaxMistakes: 11, MinChars: 1300, MinWords: 260, IsBoss: false},
-		{Name: "Level 83 - Expert Elite", TimeSeconds: 51, MinAccuracy: 98.04, MaxMistakes: 10, MinChars: 1325, MinWords: 265, IsBoss: false},
-		{Name: "Level 84 - Expert Elite", TimeSeconds: 51, MinAccuracy: 98.06, MaxMistakes: 9, MinChars: 1350, MinWords: 270, IsBoss: false},
-		{Name: "Expert Boss 1 - Legendary", TimeSeconds: 51, MinAccuracy: 98.08, MaxMistakes: 8, MinChars: 1375, MinWords: 275, IsBoss: true},
-		{Name: "Level 86 - Expert Elite", TimeSeconds: 52, MinAccuracy: 98.1, MaxMistakes: 7, MinChars: 1400, MinWords: 280, IsBoss: false},
-		{Name: "Level 87 - Expert Elite", TimeSeconds: 52, MinAccuracy: 98.12, MaxMistakes: 6, MinChars: 1425, MinWords: 285, IsBoss: false},
-		{Name: "Level 88 - Expert Elite", TimeSeconds: 52, MinAccuracy: 98.14, MaxMistakes: 5, MinChars: 1450, MinWords: 290, IsBoss: false},
-		{Name: "Level 89 - Expert Elite", TimeSeconds: 53, MinAccuracy: 98.16, MaxMistakes: 4, MinChars: 1475, MinWords: 295, IsBoss: false},
-		{Name: "Expert Boss 2 - Legendary", TimeSeconds: 53, MinAccuracy: 98.18, MaxMistakes: 3, MinChars: 1500, MinWords: 300, IsBoss: true},
-		{Name: "Level 91 - Expert Elite", TimeSeconds: 53, MinAccuracy: 98.2, MaxMistakes: 2, MinChars: 1525, MinWords: 305, IsBoss: false},
-		{Name: "Level 92 - Expert Elite", TimeSeconds: 54, MinAccuracy: 98.22, MaxMistakes: 1, MinChars: 1550, MinWords: 310, IsBoss: false},
-		{Name: "Level 93 - Expert Elite", TimeSeconds: 54, MinAccuracy: 98.24, MaxMistakes: 1, MinChars: 1575, MinWords: 315, IsBoss: false},
-		{Name: "Level 94 - Expert Elite", TimeSeconds: 54, MinAccuracy: 98.26, MaxMistakes: 1, MinChars: 1600, MinWords: 320, IsBoss: false},
-		{Name: "Expert Boss 3 - Legendary", TimeSeconds: 55, MinAccuracy: 98.28, MaxMistakes: 1, MinChars: 1625, MinWords: 325, IsBoss: true},
-		{Name: "Level 96 - Expert Elite", TimeSeconds: 55, MinAccuracy: 98.3, MaxMistakes: 1, MinChars: 1650, MinWords: 330, IsBoss: false},
-		{Name: "Level 97 - Expert Elite", TimeSeconds: 55, MinAccuracy: 98.32, MaxMistakes: 1, MinChars: 1675, MinWords: 335, IsBoss: false},
-		{Name: "Level 98 - Expert Elite", TimeSeconds: 56, MinAccuracy: 98.34, MaxMistakes: 1, MinChars: 1700, MinWords: 340, IsBoss: false},
-		{Name: "Expert Boss 4 - Legendary", TimeSeconds: 56, MinAccuracy: 98.36, MaxMistakes: 1, MinChars: 1725, MinWords: 345, IsBoss: true},
-
-		{Name: "Level 100 - Ultimate Typing God", TimeSeconds: 120, MinAccuracy: 99.5, MaxMistakes: 5, MinChars: 2000, MinWords: 400, IsBoss: true},
+// Generate level name based on tier and position
+func generateLevelName(levelNum int, isBoss bool, tier DifficultyTier) string {
+	if isBoss {
+		bossIndex := (levelNum - 1) % len(bossNames)
+		return tier.Name + " Boss - " + bossNames[bossIndex]
 	}
+
+	// Varied level names within each tier
+	levelNames := []string{
+		"Foundation", "Building Blocks", "First Steps", "Getting Comfortable",
+		"Settling In", "Finding Flow", "Building Confidence", "Growing Stronger",
+		"Pushing Limits", "Tier Complete",
+	}
+
+	localLevel := levelNum - tier.StartLevel
+	if localLevel < len(levelNames) {
+		return tier.Name + " - " + levelNames[localLevel]
+	}
+
+	return tier.Name + " - Level " + string(rune('A'+localLevel-len(levelNames)))
+}
+
+func GetBuiltInLevels() []ChallengeLevel {
+	var levels []ChallengeLevel
+
+	for _, tier := range difficultyTiers {
+		levelsInTier := tier.EndLevel - tier.StartLevel + 1
+		bossInterval := 5 // Boss every 5 levels
+
+		for i := 0; i < levelsInTier; i++ {
+			levelNum := tier.StartLevel + i
+			isBoss := (i+1)%bossInterval == 0 || levelNum == 100
+
+			// Calculate progressive difficulty within tier
+			progress := float64(i) / float64(levelsInTier-1)
+
+			// Non-linear progression curves for more realistic difficulty
+			accuracy := tier.BaseAccuracy + progress*progress*4.0 // Quadratic increase
+			timeSeconds := tier.TimeBase + int(progress*progress*15.0) // Quadratic time increase
+			charCount := tier.CharBase + int(progress*progress*200.0)   // Quadratic length increase
+			maxMistakes := int(float64(tier.MistakeBase) * (1.0 - progress*progress*0.8)) // Quadratic decrease
+
+			// Ensure minimums
+			if accuracy < 85.0 {
+				accuracy = 85.0
+			}
+			if timeSeconds < 20 {
+				timeSeconds = 20
+			}
+			if charCount < 10 {
+				charCount = 10
+			}
+			if maxMistakes < 1 {
+				maxMistakes = 1
+			}
+
+			// Special handling for final level
+			if levelNum == 100 {
+				accuracy = 99.5
+				timeSeconds = 120
+				charCount = 2000
+				maxMistakes = 5
+			}
+
+			// Estimate word count (roughly 5 chars per word)
+			minWords := int(math.Ceil(float64(charCount) / 5.5))
+
+			level := ChallengeLevel{
+				Name:        generateLevelName(levelNum, isBoss, tier),
+				TimeSeconds: timeSeconds,
+				MinAccuracy: math.Round(accuracy*10) / 10, // Round to 1 decimal
+				MaxMistakes: maxMistakes,
+				MinChars:    charCount,
+				MinWords:    minWords,
+				IsBoss:      isBoss,
+			}
+
+			levels = append(levels, level)
+		}
+	}
+
+	return levels
 }

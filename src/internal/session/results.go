@@ -46,7 +46,7 @@ func CalculateAdjustedWPM(correctChars int, avgWordLength float64, duration time
 
 func CalculateAccuracy(totalChars int, mistakes int) float64 {
 	if totalChars == 0 {
-		return 0
+		return 100.0
 	}
 	return float64(totalChars-mistakes) / float64(totalChars) * 100
 }
