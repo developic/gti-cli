@@ -10,7 +10,9 @@ import (
 
 var codeLanguage string
 var codeCount int
-var codeTimed int
+var codeTimed string
+var codeCustom string
+var codeStart int
 
 var codeCmd = &cobra.Command{
 	Use:   "code [language]",
@@ -29,8 +31,32 @@ EXAMPLES:
 OPTIONS:
   -l, --language <lang>       Programming language (go, python, javascript, etc.)
   -n, --count <num>           Number of code snippets (default: 1)
-  -t, --timed <seconds>       Timed mode with duration in seconds`,
+  -c, --custom <file>         Practice with custom code file (.py, .go, .js, etc.)
+  --start <num>               Start from paragraph number (for custom files)
+  -t, --timed <duration>      Timed mode with duration (e.g., 30, 10s, 5m)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Check if custom file is specified
+		if codeCustom != "" {
+			// Handle custom code file - use custom-code mode for proper code rendering
+			if codeTimed != "" {
+				// Timed custom code file
+				timedSeconds := parseDuration(codeTimed)
+				return app.StartApp(app.AppOptions{
+					Mode:    "custom-code",
+					File:    codeCustom,
+					Start:   codeStart,
+					Seconds: timedSeconds,
+				})
+			} else {
+				// Regular custom code file
+				return app.StartApp(app.AppOptions{
+					Mode:  "custom-code",
+					File:  codeCustom,
+					Start: codeStart,
+				})
+			}
+		}
+
 		// Parse language from args or flags
 		language := "go" // default
 		if len(args) > 0 {
@@ -41,17 +67,17 @@ OPTIONS:
 		}
 
 		// Validate language
-		supportedLanguages := []string{"go", "python", "javascript", "java", "cpp", "rust", "typescript"}
-		isSupported := false
-		for _, lang := range supportedLanguages {
-			if language == lang {
-				isSupported = true
-				break
-			}
+		supportedLanguages := map[string]bool{
+			"go": true, "python": true, "javascript": true, "java": true,
+			"cpp": true, "rust": true, "typescript": true,
 		}
-		if !isSupported {
+		if !supportedLanguages[strings.ToLower(language)] {
+			langs := make([]string, 0, len(supportedLanguages))
+			for lang := range supportedLanguages {
+				langs = append(langs, lang)
+			}
 			return fmt.Errorf("unsupported language '%s'. Supported languages: %s",
-				language, strings.Join(supportedLanguages, ", "))
+				language, strings.Join(langs, ", "))
 		}
 
 		// Validate count
@@ -63,9 +89,10 @@ OPTIONS:
 		}
 
 		// Handle different modes
-		if codeTimed > 0 {
+		if codeTimed != "" {
 			// Timed code practice
-			return app.StartCodePracticeTimed(language, codeCount, codeTimed)
+			timedSeconds := parseDuration(codeTimed)
+			return app.StartCodePracticeTimed(language, codeCount, timedSeconds)
 		} else {
 			// Regular code practice
 			return app.StartCodePractice(language, codeCount)
@@ -76,5 +103,7 @@ OPTIONS:
 func init() {
 	codeCmd.Flags().StringVarP(&codeLanguage, "language", "l", "", "programming language")
 	codeCmd.Flags().IntVarP(&codeCount, "count", "n", 1, "number of code snippets")
-	codeCmd.Flags().IntVarP(&codeTimed, "timed", "t", 0, "timed mode with duration in seconds")
+	codeCmd.Flags().StringVarP(&codeCustom, "custom", "c", "", "practice with custom code file (.py, .go, .js, etc.)")
+	codeCmd.Flags().IntVar(&codeStart, "start", 1, "start from paragraph number (for custom files)")
+	codeCmd.Flags().StringVarP(&codeTimed, "timed", "t", "", "timed mode with duration (e.g., 30, 10s, 5m)")
 }
