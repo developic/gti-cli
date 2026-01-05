@@ -44,10 +44,10 @@ COMMANDS
   version                Display version information
 
 OPTIONS
-  -n <count>             Number of chunks per group for default practice (default: 2)
-  -g <count>             Number of groups for default practice (default: 1)
+  -n <count>             Number of chunks per group (default: 2)
+  -g <count>             Number of groups (default: 1)
   -c, --custom <file>    Start with custom text file
-  --start <num>          Start from paragraph number (for custom mode)
+  --start <num>          Start from paragraph number
   -t, --timed <time>     Start timed mode with duration
   -s, --shortcuts        Show shortcuts and exit
   -h, --help             Display help information
@@ -74,7 +74,7 @@ OPTIONS
 		// Handle language selection and save preference if changed
 		if language != "" {
 			if !internal.IsLanguageSupported(language) {
-				fmt.Fprintf(os.Stderr, "Error: Language '%s' is not supported. Use one of: english, spanish, french, german, japanese, russian, italian, portuguese, chinese, arabic, hindi, korean, dutch, swedish, czech, danish, finnish, greek, hebrew, hungarian, norwegian, polish, thai, turkish\n", language)
+				fmt.Fprintf(os.Stderr, "Error: Language '%s' is not supported. Run 'gti --help' to see available languages.\n", language)
 				os.Exit(1)
 			}
 
@@ -143,40 +143,49 @@ func parseDuration(durationStr string) int {
 }
 
 func showShortcuts() error {
-	fmt.Println("GTI Keyboard Shortcuts and Controls")
-	fmt.Println("===================================")
+	shortcuts := []struct{ key, desc string }{
+		{"GLOBAL SHORTCUTS", ""},
+		{"Ctrl+C", "Force quit application"},
+		{"Ctrl+Q", "Quit with confirmation"},
+		{"Esc", "Close overlays / Cancel"},
+		{"", ""},
+		{"TYPING SESSION CONTROLS", ""},
+		{"Tab/Enter", "Submit text / Accept results"},
+		{"Ctrl+R", "Restart current session"},
+		{"Backspace", "Delete characters"},
+		{"Ctrl+H", "Show help overlay"},
+		{"", ""},
+		{"NAVIGATION", ""},
+		{"Left/Right", "Navigate text segments"},
+		{"Up/Down", "Scroll content"},
+		{"PgUp/PgDn", "Page scroll"},
+		{"", ""},
+		{"QUICK START FLAGS", ""},
+		{"-c <file>", "Start with custom text"},
+		{"-t <time>", "Start timed test"},
+		{"-s", "Show this help"},
+	}
+
+	fmt.Println("GTI Keyboard Shortcuts")
+	fmt.Println("======================")
 	fmt.Println()
-	fmt.Println("GLOBAL SHORTCUTS:")
-	fmt.Println("  Ctrl+C        Force quit application (no confirmation)")
-	fmt.Println("  Ctrl+Q        Quit with confirmation dialog")
-	fmt.Println("  Esc           Close overlays / Cancel operations")
-	fmt.Println()
-	fmt.Println("TYPING SESSION CONTROLS:")
-	fmt.Println("  Tab/Enter     Submit completed text / Accept results")
-	fmt.Println("  Ctrl+R        Restart current session/text")
-	fmt.Println("  Backspace     Delete characters (during typing)")
-	fmt.Println("  Ctrl+H        Show help overlay (if available)")
-	fmt.Println()
-	fmt.Println("NAVIGATION:")
-	fmt.Println("  Left/Right    Navigate between text segments")
-	fmt.Println("  Up/Down       Scroll through content (in menus/views)")
-	fmt.Println("  PgUp/PgDn     Page up/down (in statistics view)")
-	fmt.Println()
-	fmt.Println("STATISTICS VIEW CONTROLS:")
-	fmt.Println("  q             Quit statistics view")
-	fmt.Println("  s             Switch between time views (session/daily/weekly/all-time)")
-	fmt.Println("  h/l           Navigate between views (vim-style)")
-	fmt.Println("  e             Export current view data to Downloads folder")
-	fmt.Println("  ↑/↓           Scroll through statistics")
-	fmt.Println("  PgUp/PgDn     Page scroll in statistics")
-	fmt.Println()
-	fmt.Println("QUICK START FLAGS:")
-	fmt.Println("  -c <file>     Start with custom text file")
-	fmt.Println("  -t <time>     Start timed test (e.g., -t 30, -t 2m)")
-	fmt.Println("  -s            Show this shortcuts help")
-	fmt.Println()
-	fmt.Println("EXAMPLES:")
-	fmt.Println("  gti shortcuts    # Show this help")
-	fmt.Println("  gti -s           # Same as above (shortcut flag)")
+
+	for _, s := range shortcuts {
+		if s.desc == "" {
+			if s.key != "" {
+				fmt.Printf("%s:\n", s.key)
+			} else {
+				fmt.Println()
+			}
+		} else {
+			fmt.Printf("  %-12s %s\n", s.key, s.desc)
+		}
+	}
+
+	fmt.Println("\nExamples:")
+	fmt.Println("  gti -s           # Show shortcuts")
+	fmt.Println("  gti -c file.txt  # Custom text")
+	fmt.Println("  gti -t 30        # 30-second test")
+
 	return nil
 }
