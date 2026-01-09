@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"gti/src/internal"
 	"gti/src/internal/app"
 )
 
@@ -67,17 +68,9 @@ OPTIONS:
 		}
 
 		// Validate language
-		supportedLanguages := map[string]bool{
-			"go": true, "python": true, "javascript": true, "java": true,
-			"cpp": true, "rust": true, "typescript": true,
-		}
-		if !supportedLanguages[strings.ToLower(language)] {
-			langs := make([]string, 0, len(supportedLanguages))
-			for lang := range supportedLanguages {
-				langs = append(langs, lang)
-			}
-			return fmt.Errorf("unsupported language '%s'. Supported languages: %s",
-				language, strings.Join(langs, ", "))
+		if err := internal.ValidateCodeLanguage(language); err != nil {
+			supportedLanguages := internal.GetSupportedCodeLanguages()
+			return fmt.Errorf("%s. Supported languages: %s", err.Error(), strings.Join(supportedLanguages, ", "))
 		}
 
 		// Validate count
@@ -88,13 +81,12 @@ OPTIONS:
 			codeCount = 10
 		}
 
-		// Handle different modes
+		// Handle different nodes
 		if codeTimed != "" {
-			// Timed code practice
+			// Timed 
 			timedSeconds := parseDuration(codeTimed)
 			return app.StartCodePracticeTimed(language, codeCount, timedSeconds)
 		} else {
-			// Regular code practice
 			return app.StartCodePractice(language, codeCount)
 		}
 	},
