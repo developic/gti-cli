@@ -2,6 +2,7 @@ package internal
 
 import (
 	"bufio"
+	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -116,6 +117,14 @@ func IsLanguageSupported(language string) bool {
 	return exists
 }
 
+// ValidateLanguage checks if language is supported and returns error if not
+func ValidateLanguage(language string) error {
+	if !IsLanguageSupported(language) {
+		return fmt.Errorf("unsupported language '%s'", language)
+	}
+	return nil
+}
+
 func loadCodeSnippets(language string) []string {
 	loadMutex.Lock()
 	defer loadMutex.Unlock()
@@ -192,4 +201,21 @@ func GenerateCodeSnippets(count int, language string) string {
 func IsCodeLanguageSupported(language string) bool {
 	_, exists := codeLanguageFiles[language]
 	return exists
+}
+
+// ValidateCodeLanguage checks if code language is supported and returns error if not
+func ValidateCodeLanguage(language string) error {
+	if !IsCodeLanguageSupported(language) {
+		return fmt.Errorf("unsupported language '%s'", language)
+	}
+	return nil
+}
+
+// GetSupportedCodeLanguages returns a list of supported code languages
+func GetSupportedCodeLanguages() []string {
+	var langs []string
+	for lang := range codeLanguageFiles {
+		langs = append(langs, lang)
+	}
+	return langs
 }
