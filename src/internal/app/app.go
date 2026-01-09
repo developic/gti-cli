@@ -70,9 +70,6 @@ func StartApp(opts AppOptions) error {
 
 	case "custom-code":
 		mode := "code"
-		if opts.Seconds > 0 {
-			mode = "code" // Keep as "code" for timed mode too
-		}
 		modelOpts = tui.ModelOptions{
 			Mode:    mode,
 			File:    opts.File,
@@ -81,8 +78,8 @@ func StartApp(opts AppOptions) error {
 		}
 
 	case "code":
-		if opts.Seconds > 0 && opts.CodeCount > 1 {
-			// Multiple timed snippets - create a chunked session with timed chunks
+		if opts.CodeCount > 1 {
+			// Multiple snippets (timed or untimed)
 			sess := session.NewSessionWithCodeSnippetsTimed(cfg, opts.Language, opts.CodeCount, opts.Seconds)
 			modelOpts = tui.ModelOptions{Session: sess}
 		} else if opts.Seconds > 0 {
@@ -90,12 +87,8 @@ func StartApp(opts AppOptions) error {
 			text := internal.GenerateCodeSnippet(opts.Language)
 			sess := session.NewSessionTimed(cfg, "code", text, nil, 0, opts.Seconds)
 			modelOpts = tui.ModelOptions{Session: sess}
-		} else if opts.CodeCount > 1 {
-			// Multiple snippets
-			sess := session.NewSessionWithCodeSnippets(cfg, opts.Language, opts.CodeCount)
-			modelOpts = tui.ModelOptions{Session: sess}
 		} else {
-			// Single snippet
+			// Single untimed snippet
 			sess := session.NewSessionWithCodeSnippet(cfg, "code")
 			modelOpts = tui.ModelOptions{Session: sess}
 		}
@@ -107,41 +100,99 @@ func StartApp(opts AppOptions) error {
 	return runTUIModel(cfg, modelOpts)
 }
 
+// Unified app starting with options pattern
+func StartAppWithOptions(opts ...AppOption) error {
+	config := AppOptions{}
+
+	// Apply options
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	return StartApp(config)
+}
+
+// AppOption allows flexible app configuration
+type AppOption func(*AppOptions)
+
+// WithMode sets the app mode
+func WithMode(mode string) AppOption {
+	return func(o *AppOptions) {
+		o.Mode = mode
+	}
+}
+
+// WithChunkCount sets chunk count for practice mode
+func WithChunkCount(count int) AppOption {
+	return func(o *AppOptions) {
+		o.ChunkCount = count
+	}
+}
+
+// WithLanguage sets language for generation
+func WithLanguage(language string) AppOption {
+	return func(o *AppOptions) {
+		o.Language = language
+	}
+}
+
+// WithTimeLimit sets time limit in seconds
+func WithTimeLimit(seconds int) AppOption {
+	return func(o *AppOptions) {
+		o.Seconds = seconds
+	}
+}
+
+// WithCustomFile sets custom file and start position
+func WithCustomFile(file string, start int) AppOption {
+	return func(o *AppOptions) {
+		o.File = file
+		o.Start = start
+	}
+}
+
+// WithCodeCount sets number of code snippets
+func WithCodeCount(count int) AppOption {
+	return func(o *AppOptions) {
+		o.CodeCount = count
+	}
+}
+
 // Legacy functions for backward compatibility
 func StartPractice() error {
-	return StartApp(AppOptions{Mode: "practice"})
+	return StartAppWithOptions(WithMode("practice"))
 }
 
 func StartPracticeWithChunks(chunkCount int) error {
-	return StartApp(AppOptions{Mode: "practice", ChunkCount: chunkCount})
+	return StartAppWithOptions(WithMode("practice"), WithChunkCount(chunkCount))
 }
 
 func StartPracticeWithChunksAndLanguage(chunkCount int, language string) error {
-	return StartApp(AppOptions{Mode: "practice", ChunkCount: chunkCount, Language: language})
+	return StartAppWithOptions(WithMode("practice"), WithChunkCount(chunkCount), WithLanguage(language))
 }
 
 func StartWords() error {
-	return StartApp(AppOptions{Mode: "words"})
+	return StartAppWithOptions(WithMode("words"))
 }
 
 func StartTimed(seconds int) error {
-	return StartApp(AppOptions{Mode: "timed", Seconds: seconds})
+	return StartAppWithOptions(WithMode("timed"), WithTimeLimit(seconds))
 }
 
 func StartCustom(file string, start int) error {
-	return StartApp(AppOptions{Mode: "custom", File: file, Start: start})
+	return StartAppWithOptions(WithMode("custom"), WithCustomFile(file, start))
 }
 
 func StartCustomTimed(file string, start int, seconds int) error {
-	return StartApp(AppOptions{Mode: "custom", File: file, Start: start, Seconds: seconds})
+	return StartAppWithOptions(WithMode("custom"), WithCustomFile(file, start), WithTimeLimit(seconds))
 }
 
 func StartCodePractice(language string, count int) error {
-	return StartApp(AppOptions{Mode: "code", Language: language, CodeCount: count})
+	return StartAppWithOptions(WithMode("code"), WithLanguage(language), WithCodeCount(count))
 }
 
 func StartCodePracticeTimed(language string, count int, seconds int) error {
-	return StartApp(AppOptions{Mode: "code", Language: language, CodeCount: count, Seconds: seconds})
+	return StartAppWithOptions(WithMode("code"), WithLanguage(language), WithCodeCount(count), WithTimeLimit(seconds))
 }
 
 func StartChallengeGame() error {
