@@ -2,25 +2,21 @@ package config
 
 import (
 	"os"
-
-	"github.com/BurntSushi/toml"
 )
 
 func GenerateConfig() error {
-	dirs := []string{ConfigDir, DataDir, CacheDir}
+	dirs := []string{ConfigDir, CacheDir}
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := EnsureDir(dir); err != nil {
 			return err
 		}
 	}
 
 	cfg := DefaultConfig()
-	file, err := os.Create(ConfigFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+	return SaveTOMLConfig(ConfigFile, cfg)
+}
 
-	encoder := toml.NewEncoder(file)
-	return encoder.Encode(cfg)
+// EnsureDir provides unified directory creation with standard permissions
+func EnsureDir(dirPath string) error {
+	return os.MkdirAll(dirPath, 0755)
 }
