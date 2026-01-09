@@ -180,7 +180,7 @@ func (s *Session) setTextFromConfig(sessionConfig SessionConfig) {
 		s.author = sessionConfig.Author
 	} else if sessionConfig.File != "" {
 		// Load from file
-		if sessionConfig.Mode == "code" {
+		if sessionConfig.Mode == "code" || sessionConfig.Mode == "custom-code" {
 			if sessionConfig.Start == 1 {
 				// For code mode with default start, load entire file as one snippet
 				text, err := loadTextFromFile(sessionConfig.File)
@@ -325,119 +325,159 @@ func (s *Session) saveRecord(mistakes int) {
 	SaveSessionRecord(s.config, record)
 }
 
-func NewSession(cfg *config.Config, mode string) *Session {
+// Unified session creation with options pattern
+func NewSession(cfg *config.Config, mode string, opts ...SessionOption) *Session {
 	config := SessionConfig{Mode: mode}
 
+	// Apply options
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	// Set defaults based on mode
 	switch mode {
 	case "words":
-		config.TimeLimit = time.Duration(DefaultTimedSeconds) * time.Second
+		if config.TimeLimit == 0 {
+			config.TimeLimit = time.Duration(DefaultTimedSeconds) * time.Second
+		}
 	case "timed":
-		config.TimeLimit = time.Duration(cfg.Timed.DefaultSeconds) * time.Second
+		if config.TimeLimit == 0 {
+			config.TimeLimit = time.Duration(cfg.Timed.DefaultSeconds) * time.Second
+		}
 	case "quote":
 		// Quote fetching should be handled at command level
 	default:
 		// Check if it's a code mode
 		if strings.Contains(mode, "code") || mode == "snippet" {
-			return NewSessionWithCodeSnippet(cfg, mode)
+			if config.Language == "" {
+				config.Language = extractLanguageFromMode(mode)
+			}
 		}
 	}
 
 	return NewSessionWithOptions(cfg, config)
 }
 
-func NewSessionWithCustomText(cfg *config.Config, mode, file string, start int) *Session {
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:  mode,
-		File:  file,
-		Start: start,
-	})
+// SessionOption allows flexible session configuration
+type SessionOption func(*SessionConfig)
+
+// WithCustomText sets custom file and start position
+func WithCustomText(file string, start int) SessionOption {
+	return func(c *SessionConfig) {
+		c.File = file
+		c.Start = start
+	}
 }
 
+// WithChallenge sets challenge tier
+func WithChallenge(tier string) SessionOption {
+	return func(c *SessionConfig) {
+		c.Tier = tier
+	}
+}
 
+// WithQuotes sets quote list
+func WithQuotes(quoteList []Quote) SessionOption {
+	return func(c *SessionConfig) {
+		c.QuoteList = quoteList
+	}
+}
+
+// WithChunkLimit sets maximum chunks for practice
+func WithChunkLimit(maxChunks int) SessionOption {
+	return func(c *SessionConfig) {
+		c.MaxChunks = maxChunks
+	}
+}
+
+// WithCodeLanguage sets programming language for code mode
+func WithCodeLanguage(language string) SessionOption {
+	return func(c *SessionConfig) {
+		c.Language = language
+	}
+}
+
+// WithCodeCount sets number of code snippets
+func WithCodeCount(count int) SessionOption {
+	return func(c *SessionConfig) {
+		if count <= 0 {
+			count = 1
+		}
+		if count > MaxQuoteCount {
+			count = MaxQuoteCount
+		}
+		c.CodeCount = count
+	}
+}
+
+// WithTimeLimit sets time limit
+func WithTimeLimit(seconds int) SessionOption {
+	return func(c *SessionConfig) {
+		if seconds > 0 {
+			c.TimeLimit = time.Duration(seconds) * time.Second
+		}
+	}
+}
+
+// WithText sets custom text directly
+func WithText(text string, allChunks []string, chunkIndex int) SessionOption {
+	return func(c *SessionConfig) {
+		c.Text = text
+		c.AllChunks = allChunks
+		c.ChunkIndex = chunkIndex
+	}
+}
+
+// extractLanguageFromMode extracts language from mode string (e.g., "go-code" -> "go")
+func extractLanguageFromMode(mode string) string {
+	languageMap := map[string]string{
+		"python":     "python",
+		"javascript": "javascript",
+		"java":       "java",
+		"cpp":        "cpp",
+		"rust":       "rust",
+		"typescript": "typescript",
+	}
+
+	for key, lang := range languageMap {
+		if strings.Contains(mode, key) {
+			return lang
+		}
+	}
+	return "go" // default
+}
+
+// Legacy functions for backward compatibility
+func NewSessionWithCustomText(cfg *config.Config, mode, file string, start int) *Session {
+	return NewSession(cfg, mode, WithCustomText(file, start))
+}
 
 func NewSessionWithChallenge(cfg *config.Config, tier string) *Session {
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode: "challenge",
-		Tier: tier,
-	})
+	return NewSession(cfg, "challenge", WithChallenge(tier))
 }
 
 func NewSessionWithQuotes(cfg *config.Config, quoteList []Quote) *Session {
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:      "quotes",
-		QuoteList: quoteList,
-	})
+	return NewSession(cfg, "quotes", WithQuotes(quoteList))
 }
 
 func NewSessionWithChunkLimit(cfg *config.Config, maxChunks int) *Session {
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:      "practice",
-		MaxChunks: maxChunks,
-	})
+	return NewSession(cfg, "practice", WithChunkLimit(maxChunks))
 }
 
 func NewSessionWithCodeSnippet(cfg *config.Config, mode string) *Session {
-	// Extract language from mode (e.g., "go-code" -> "go")
-	language := "go" // default
-	if strings.Contains(mode, "python") {
-		language = "python"
-	} else if strings.Contains(mode, "javascript") {
-		language = "javascript"
-	} else if strings.Contains(mode, "java") {
-		language = "java"
-	} else if strings.Contains(mode, "cpp") {
-		language = "cpp"
-	} else if strings.Contains(mode, "rust") {
-		language = "rust"
-	} else if strings.Contains(mode, "typescript") {
-		language = "typescript"
-	}
-
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:     "code",
-		Language: language,
-	})
+	return NewSession(cfg, "code", WithCodeLanguage(extractLanguageFromMode(mode)))
 }
 
 func NewSessionWithCodeSnippets(cfg *config.Config, language string, count int) *Session {
-	if count <= 0 {
-		count = 1
-	}
-	if count > MaxQuoteCount {
-		count = MaxQuoteCount
-	}
-
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:      "code",
-		Language:  language,
-		CodeCount: count,
-	})
+	return NewSession(cfg, "code", WithCodeLanguage(language), WithCodeCount(count))
 }
 
 func NewSessionWithCodeSnippetsTimed(cfg *config.Config, language string, count int, seconds int) *Session {
-	if count <= 0 {
-		count = 1
-	}
-	if count > MaxQuoteCount {
-		count = MaxQuoteCount
-	}
-
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:      "code",
-		Language:  language,
-		CodeCount: count,
-		TimeLimit: time.Duration(seconds) * time.Second,
-	})
+	return NewSession(cfg, "code", WithCodeLanguage(language), WithCodeCount(count), WithTimeLimit(seconds))
 }
 
 func NewSessionTimed(cfg *config.Config, mode string, text string, allChunks []string, chunkIndex int, seconds int) *Session {
-	return NewSessionWithOptions(cfg, SessionConfig{
-		Mode:       mode,
-		Text:       text,
-		AllChunks:  allChunks,
-		ChunkIndex: chunkIndex,
-		TimeLimit:  time.Duration(seconds) * time.Second,
-	})
+	return NewSession(cfg, mode, WithText(text, allChunks, chunkIndex), WithTimeLimit(seconds))
 }
 
 
@@ -448,6 +488,15 @@ func loadTextFromFile(file string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// loadFileContent provides unified file loading with fallback
+func loadFileContent(filePath string, fallback string) string {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fallback
+	}
+	return string(data)
 }
 
 func splitTextIntoChunks(text string, wordsPerChunk int) []string {
