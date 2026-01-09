@@ -1,7 +1,6 @@
 package tui
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -366,21 +365,13 @@ func (m *StatisticsModel) exportStatistics() {
 	}
 
 	exportDir := filepath.Join(homeDir, "Downloads")
-	if err := os.MkdirAll(exportDir, 0755); err != nil {
+	if err := config.EnsureDir(exportDir); err != nil {
 		exportDir = homeDir
 	}
 
 	filePath := filepath.Join(exportDir, filename)
 
-	file, err := os.Create(filePath)
-	if err != nil {
-		return
-	}
-	defer file.Close()
-
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(exportData); err != nil {
+	if err := config.SaveJSONData(filePath, exportData); err != nil {
 		return
 	}
 
