@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -56,12 +58,12 @@ OPTIONS
 		custom, _ := cmd.Flags().GetString("custom")
 		timed, _ := cmd.Flags().GetString("timed")
 
-		if custom != "" && timed != "" {
-			return app.StartCustomTimed(custom, startParagraph, parseDuration(timed))
-		}
-
 		if custom != "" {
-			return app.StartCustom(custom, startParagraph)
+			seconds := 0
+			if timed != "" {
+				seconds = parseDuration(timed)
+			}
+			return startCustomFile(custom, startParagraph, seconds)
 		}
 		if timed != "" {
 			return app.StartTimed(parseDuration(timed))
@@ -73,8 +75,8 @@ OPTIONS
 		totalChunks := defaultGroups * chunksPerGroup
 		// Handle language selection and save preference if changed
 		if language != "" {
-			if !internal.IsLanguageSupported(language) {
-				fmt.Fprintf(os.Stderr, "Error: Language '%s' is not supported. Run 'gti --help' to see available languages.\n", language)
+			if err := internal.ValidateLanguage(language); err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s. Run 'gti --help' to see available languages.\n", err.Error())
 				os.Exit(1)
 			}
 
@@ -140,6 +142,37 @@ func parseDuration(durationStr string) int {
 	}
 
 	return 60
+}
+
+// isCodeFile checks if the given file path has a code file extension
+func isCodeFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	codeExtensions := map[string]bool{
+		".go":   true,
+		".py":   true,
+		".js":   true,
+		".java": true,
+		".cpp":  true,
+		".rs":   true,
+		".ts":   true,
+	}
+	return codeExtensions[ext]
+}
+
+// startCustomFile starts a typing session with a custom file, automatically detecting if it's code
+func startCustomFile(file string, start int, seconds int) error {
+	if isCodeFile(file) {
+		return app.StartApp(app.AppOptions{
+			Mode:    "custom-code",
+			File:    file,
+			Start:   start,
+			Seconds: seconds,
+		})
+	}
+	if seconds > 0 {
+		return app.StartCustomTimed(file, start, seconds)
+	}
+	return app.StartCustom(file, start)
 }
 
 func showShortcuts() error {
