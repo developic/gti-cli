@@ -58,7 +58,7 @@ OPTIONS:
 			}
 		}
 
-		// Parse language from args or flags
+		// parse language from args or flags
 		language := "go" // default
 		if len(args) > 0 {
 			language = args[0]
