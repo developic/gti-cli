@@ -47,9 +47,19 @@ func NewModel(cfg *config.Config, opts ModelOptions) Model {
 	if opts.Session != nil {
 		sess = opts.Session
 	} else if opts.File != "" && opts.Seconds > 0 {
-		paragraphs := session.LoadParagraphs(opts.File)
-		text := session.GetParagraphAtStart(paragraphs, opts.Start)
-		sess = session.NewSessionTimed(cfg, "custom-timed", text, paragraphs, opts.Start-1, opts.Seconds)
+		if opts.Mode == "code" {
+			// For code mode with file and timing, use the same config as non-timed
+			sess = session.NewSessionWithOptions(cfg, session.SessionConfig{
+				Mode:      "code",
+				File:      opts.File,
+				Start:     opts.Start,
+				TimeLimit: time.Duration(opts.Seconds) * time.Second,
+			})
+		} else {
+			paragraphs := session.LoadParagraphs(opts.File)
+			text := session.GetParagraphAtStart(paragraphs, opts.Start)
+			sess = session.NewSessionTimed(cfg, "custom-timed", text, paragraphs, opts.Start-1, opts.Seconds)
+		}
 	} else if opts.File != "" {
 		sess = session.NewSessionWithCustomText(cfg, opts.Mode, opts.File, opts.Start)
 	} else if opts.Seconds > 0 {
