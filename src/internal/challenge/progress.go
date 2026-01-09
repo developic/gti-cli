@@ -1,7 +1,6 @@
 package challenge
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 
@@ -23,13 +22,7 @@ func LoadProgress(cfg *config.Config) (*GameProgress, error) {
 		return progress, nil
 	}
 
-	file, err := os.Open(progressFile)
-	if err != nil {
-		return progress, err
-	}
-	defer file.Close()
-
-	err = json.NewDecoder(file).Decode(progress)
+	err := config.LoadJSONData(progressFile, progress)
 	if err != nil {
 		return &GameProgress{HighestLevelCompleted: 0}, nil
 	}
@@ -39,14 +32,7 @@ func LoadProgress(cfg *config.Config) (*GameProgress, error) {
 
 func SaveProgress(cfg *config.Config, progress *GameProgress) error {
 	progressFile := filepath.Join(config.ConfigDir, "challenge_progress.json")
-
-	file, err := os.Create(progressFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	return json.NewEncoder(file).Encode(progress)
+	return config.SaveJSONData(progressFile, progress)
 }
 
 func GetStartingLevel(cfg *config.Config) int {
