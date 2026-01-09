@@ -1,5 +1,6 @@
 PREFIX := /usr/local/bin
-VERSION := 1.0.0  # version for builds
+VERSION := 1.1.0  # version for builds
+LDFLAGS := -X gti/src/cmd.Version=$(VERSION)
 
 .PHONY: all
 all:
@@ -32,4 +33,3 @@ rel:
 
 	# Windows x64
 	GOOS=windows GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o gti.exe main.go
-
