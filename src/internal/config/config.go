@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -55,14 +56,43 @@ func GetConfig() *Config {
 }
 
 func SaveConfig() error {
-	file, err := os.Create(ConfigFile)
+	return SaveTOMLConfig(ConfigFile, globalConfig)
+}
+
+// SaveTOMLConfig provides unified TOML config saving
+func SaveTOMLConfig(filePath string, config interface{}) error {
+	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
 	encoder := toml.NewEncoder(file)
-	return encoder.Encode(globalConfig)
+	return encoder.Encode(config)
+}
+
+// SaveJSONData provides unified JSON data saving
+func SaveJSONData(filePath string, data interface{}) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(data)
+}
+
+// LoadJSONData provides unified JSON data loading
+func LoadJSONData(filePath string, data interface{}) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return json.NewDecoder(file).Decode(data)
 }
 
 func ExpandPath(path string) string {
